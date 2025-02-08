@@ -48,3 +48,4 @@
 
 # Visual Studio Code Build Directory
 build_vsc/
+.vscode/

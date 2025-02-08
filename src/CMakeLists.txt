@@ -22,4 +22,4 @@ target_link_libraries(mppi
 
 target_compile_features(mppi
     PRIVATE
-        cxx_std_20)
+        cxx_std_23)
