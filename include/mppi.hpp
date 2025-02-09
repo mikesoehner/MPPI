@@ -17,7 +17,7 @@
 // {};
 
 // template <template <typename...> typename T, typename... Ts> 
-// struct is_modes<T<Ts...>, Ts...> : std::is_same< T<Ts...>, AMode<Ts...> >
+// struct is_modes<T<Ts...>, Ts...> : std::is_same< T<Ts...>, AccessMode<Ts...> >
 // {};
 
 // template< typename Modes >
@@ -49,10 +49,10 @@ public:
 };
 
 template<typename... Modes, typename... Infos>
-class File< AMode< Modes... >, Info< Infos... > >
+class File< AccessMode< Modes... >, Info< Infos... > >
 {
 public:
-    File(const char *filename, AMode<Modes...> modes, Info<Infos...> infos)
+    File(const char *filename, AccessMode<Modes...> modes, Info<Infos...> infos)
         : _modes(modes), _infos(infos)
     {
         auto amode = _modes.get_amode();
@@ -74,7 +74,7 @@ public:
 
 private:
     MPI_File _fh;
-    AMode<Modes...> _modes;
+    AccessMode<Modes...> _modes;
     Info<Infos...> _infos;
 };
 

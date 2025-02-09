@@ -113,7 +113,7 @@ int main(int argc, char** argv)
     Hint hint1(Hint_Options::coll_read_bufsize, "16777216");
     Info info(hint0, hint1, Hint(Hint_Options::mpiio_concurrency, "enable"));
     
-    AMode<MODE_APPEND, MODE_CREATE> amode;
+    AccessMode<MODE_APPEND, MODE_CREATE> amode;
 
     File file("output.txt", amode, info);
 
