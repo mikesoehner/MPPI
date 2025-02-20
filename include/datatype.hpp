@@ -75,9 +75,6 @@ public:
 };
 
 
-template<typename... Ts>
-concept are_fundamentals = (std::is_fundamental_v<Ts> && ...);
-
 // Specialization case: used for simple datatypes made up of fundamentals
 template <are_fundamentals... Ts>
 class Data<Ts...>
@@ -99,25 +96,11 @@ private:
 };
 
 
-// specialization case: used for ranges
-// template <std::ranges::input_range R> 
-    // requires (sizeof...(Ts) > 1 && ((std::ranges::contiguous_range<Ts> || std::ranges::random_access_range<Ts>) && ...))
-template<typename... Rs>
-concept are_input_ranges = (std::ranges::input_range <Rs> && ...);
-
-template<typename T, typename... Ts>
-constexpr bool free_are_same_types(T head, Ts...tail)
-{
-    return (std::conjunction_v<std::is_same<std::ranges::range_value_t<T>, std::ranges::range_value_t<Ts>>...>);
-}
-
-template<typename... Ts>
-concept are_same_types = (free_are_same_types(Ts{}...));
-
-
-template <are_input_ranges... Rs> 
-    // requires are_same_types<Rs...>
-class Data<Rs...>
+// Specialization case: used for ranges
+template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, are_input_ranges... Rs> 
+    // requires are_same_types<Rs...> 
+    requires must_be_copied<Rs...>
+class Data<SR, MemRes, Rs...>
 {
 public:
     // underlying type of the buffer

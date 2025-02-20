@@ -5,47 +5,9 @@
 #include "datatype.hpp"
 #include "tag.hpp"
 #include "parameter_pack_helpers.hpp"
+#include <memory_resource>
+#include <vector>
 
-
-
-// base case
-template<typename C, typename R>
-constexpr void copy_range(C& result_data, size_t offset, R head)
-{
-    auto range_size = std::ranges::distance(head);
-
-    std::ranges::copy(result_data.begin() + offset, result_data.begin() + offset + range_size, head.begin());
-}
-// specialization case
-template<typename C, typename R, typename... Rs>
-constexpr void copy_range(C& result_data, size_t offset, R head, Rs... tail)
-{
-    auto range_size = std::ranges::distance(head);
-
-    std::ranges::copy(result_data.begin() + offset, result_data.begin() + offset + range_size, head.begin());
-
-    offset += range_size;
-    copy_range(result_data, offset, tail...);
-}
-// free helper function
-template<typename C, typename... Rs>
-void free_copy_range(C& result_data, Rs... ranges)
-{
-    size_t offset = 0;
-    copy_range(result_data, offset, ranges...);
-}
-
-
-
-
-class Connection;
-
-template<typename... Vs>
-class Views
-{
-public:
-    Views(Vs... views) {}
-};
 
 
 class Communicator
