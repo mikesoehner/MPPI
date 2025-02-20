@@ -63,14 +63,17 @@ public:
 
     void seek() {}
     
-    template<typename... Ts>
-    void write(Data<Ts...> pattern) 
-    {
-    
+    // template<typename... Ts>
+    // void write(Data<Ts...> data) 
+    // {
+    //     MPI_File_write(_fh, data.get_data(), data.get_count(), data.get_type(), MPI_STATUS_IGNORE);
+    // }
 
-        // MPI_File_write(_fh, , , pattern.get_type(), MPI_STATUS_IGNORE);
-    }
-    void write(MPI_Offset offset) {}
+    // template<typename... Ts>
+    // void write(Data<Ts...> data, MPI_Offset offset) 
+    // {
+    //     MPI_File_write_at(_fh, offset, data.get_data(), data.get_count(), data.get_type(), MPI_STATUS_IGNORE);
+    // }
 
 private:
     MPI_File _fh;

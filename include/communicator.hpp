@@ -13,46 +13,54 @@
 class Communicator
 {
 public:
-    Communicator() {
-        _mpi_comm = MPI_COMM_WORLD;
+    Communicator(MPI_Comm mpi_comm = MPI_COMM_WORLD)
+        : _mpi_comm(mpi_comm), _buffer{}, _pool{&_buffer}
+    {
+        MPI_Comm_rank(_mpi_comm, &_rank);
+        MPI_Comm_size(_mpi_comm, &_size);
     }
 
-    Communicator(MPI_Comm mpi_comm)
-        : _mpi_comm(mpi_comm)
-    {}
-
-    auto get_rank() const 
-    { 
-        int rank; 
-        MPI_Comm_rank(_mpi_comm, &rank);
-        return rank;
-    }
+    auto get_rank() const { return _rank; }
+    auto get_size() const { return _size; }
 
     template<typename... Ts>
-    void send(Data<Ts...> data, int destination) const 
+    void send(int destination, Tag tag, Ts... ranges) 
     {
-        MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, MPI_ANY_TAG, _mpi_comm); 
-    }
-
-    template<typename... Ts>
-    void send(Data<Ts...> data, int destination, Tag tag) const 
-    {
+        Data data(Send{}, _pool, ranges...);
         MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm); 
     }
 
-    template<typename... Ts>
-    auto recv(int source, Tag tag, Ts... ranges) const
+    template<are_only_ranges... Rs>
+    auto recv(int source, Tag tag, Rs&... ranges)
     {
-        typedef decltype(free_get_types<Ts...>()) BufferType;
-        std::vector<typename Data<Ts...>::BufferType> result(free_ranges_size(ranges...));
+        Data data(Recv{}, _pool, ranges...);
 
-        MPI_Recv(result.data(), result.size(), Type2MPI::transform(BufferType{}), source, tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
+        MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source, tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
 
-        free_copy_range(result, ranges...);
+        data.retrieve_data(ranges...);
+    }
+
+    template<are_only_views... Vs>
+    auto recv(int source, Tag tag, Vs... views)
+    {
+        Data data(Recv{}, _pool, views...);
+
+        MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source, tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
+
+        data.retrieve_data(views...);
     }
 
 private:
-    MPI_Comm _mpi_comm;
+    // stores MPI container
+    MPI_Comm _mpi_comm {};
+    // stores MPI rank and size
+    int _rank {};
+    int _size {};
+
+    // resource that only allocates and not frees memory
+    std::pmr::monotonic_buffer_resource _buffer;
+    // resource that serves as memory pool for send and recv buffers
+    std::pmr::unsynchronized_pool_resource _pool;
 };
 
 
