@@ -5,7 +5,7 @@
 #include <concepts>
 #include "mpi.h"
 
-
+// The Modes have to match der MPI counterpart
 struct MODE_APPEND { static inline int value = 128; };
 struct MODE_CREATE { static inline int value = 1; };
 struct MODE_DELETE_ON_CLOSE { static inline int value = 16; };

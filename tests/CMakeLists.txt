@@ -15,11 +15,20 @@ target_compile_features(amodes_tests
 # These tests need their own main (to init MPI)
 add_executable(custom-main-tests test_main.cpp)
 target_link_libraries(custom-main-tests 
-    PRIVATE 
-        Catch2::Catch2
-        MPI::MPI_CXX)
+        PRIVATE 
+            Catch2::Catch2
+            MPI::MPI_CXX)
+target_compile_features(custom-main-tests
+        PRIVATE
+            cxx_std_23)
 
 
+set(NUMPROCS "2")
+# message(${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NUMPROCS})
+add_test(NAME custom-main-tests
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} "2" custom-main-tests )
+
+# This test should already fail the compilation
 add_executable(amodes_failing_tests amodes_failing_tests.cpp)
 target_compile_features(amodes_failing_tests
                         PRIVATE
@@ -38,5 +47,5 @@ set_tests_properties(amodes_failing_tests PROPERTIES WILL_FAIL TRUE)
 
 include(CTest)
 include(Catch)
-catch_discover_tests(custom-main-tests)
+# catch_discover_tests(custom-main-tests)
 catch_discover_tests(amodes_tests)
