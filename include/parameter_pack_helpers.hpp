@@ -73,13 +73,13 @@ constexpr std::size_t free_array_size(Us... args)
 
 // base case
 template<typename C, typename R>
-constexpr void fill_range(C& container, R head)
+constexpr void fill_range(C& container, R& head)
 {
     std::ranges::copy(head, std::back_inserter(container));
 }
 // specialization case
 template<typename C, typename R, typename... Rs>
-constexpr void fill_range(C& container, R head, Rs... tail)
+constexpr void fill_range(C& container, R& head, Rs&... tail)
 {
     std::ranges::copy(head, std::back_inserter(container));
 
@@ -87,26 +87,26 @@ constexpr void fill_range(C& container, R head, Rs... tail)
 }
 // free helper function
 template<typename C, typename... Rs>
-void free_fill_range(C& container, Rs... ranges)
+void free_fill_range(C& container, Rs&... ranges)
 {
     fill_range(container, ranges...);
 }
 
 // base case
 template<typename R>
-constexpr size_t resize_range(R head)
+constexpr size_t resize_range(R& head)
 {
     return std::ranges::distance(head);
 }
 // specialization case
 template<typename R, typename... Rs>
-constexpr size_t resize_range(R head, Rs... tail)
+constexpr size_t resize_range(R& head, Rs&... tail)
 {
     return std::ranges::distance(head) + resize_range(tail...);
 }
 // free helper function
 template<typename C, typename... Rs>
-void free_resize_range(C& container, Rs... ranges)
+void free_resize_range(C& container, Rs&... ranges)
 {
     container.resize(resize_range(ranges...));
 }

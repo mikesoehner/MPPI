@@ -30,6 +30,16 @@ public:
         MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm); 
     }
 
+    template<are_fundamentals... Fs>
+    auto recv(int source, Tag tag, Fs&... fundamentals)
+    {
+        Data data(Recv{}, _pool, fundamentals...);
+
+        MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source, tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
+
+        data.retrieve_data(fundamentals...);
+    }
+
     template<are_only_ranges... Rs>
     auto recv(int source, Tag tag, Rs&... ranges)
     {

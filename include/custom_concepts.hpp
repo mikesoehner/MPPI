@@ -15,7 +15,7 @@ concept are_fundamentals = (std::is_fundamental_v<Ts> && ...);
 
 // checks if all types in the pack are input ranges
 template<typename... Rs>
-concept are_input_ranges = (std::ranges::input_range <Rs> && ...);
+concept are_input_ranges = (std::ranges::input_range<Rs> && ...);
 
 // checks if the input data needs to be copied (necessary for multiple ranges and mutiple fundamentals)
 template<typename... Ts>
@@ -34,10 +34,16 @@ concept are_only_ranges = ((std::ranges::range<Rs> && std::movable<Rs> && !std::
 
 
 // checks if all types in the pack are ranges with the same underlying type
-template<typename T, typename... Ts>
-constexpr bool free_are_same_types(T head, Ts...tail)
+template<typename T, typename U>
+constexpr bool free_are_same_types(T head0, U head1)
 {
-    return (std::conjunction_v<std::is_same<std::ranges::range_value_t<T>, std::ranges::range_value_t<Ts>>...>);
+    return std::is_same_v<std::ranges::range_value_t<T>, std::ranges::range_value_t<U>>;
+}
+// checks if all types in the pack are ranges with the same underlying type
+template<typename T, typename U, typename... Ts>
+constexpr bool free_are_same_types(T head0, U head1, Ts...tail)
+{
+    return std::is_same_v<std::ranges::range_value_t<T>, std::ranges::range_value_t<U>> && are_same_types(head1, tail...);
 }
 
 template<typename... Ts>

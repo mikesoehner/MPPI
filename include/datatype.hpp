@@ -47,29 +47,58 @@ public:
 
 
 // Specialization case: used for simple datatypes made up of fundamentals
-template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, are_fundamentals... Ts>
-class Data<SR, MemRes, Ts...>
+template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, are_fundamentals... Fs>
+class Data<SR, MemRes, Fs...>
 {
 public:
-    Data(SR, MemRes& memres, Ts... args)
+    Data(SR, MemRes& memres, Fs... fundamentals)
         : _buffer { &memres } 
     {
-        _buffer.resize(free_array_size(Ts{}...));
+        _buffer.resize(free_array_size(Fs{}...));
         // if we are sending data, we need to copy the args
         if constexpr ( std::is_same_v<SR, Send> )
-            free_fill_buffer(_buffer.data(), args...);
+            free_fill_buffer(_buffer.data(), fundamentals...);
     }
 
-    void retrieve_data(Ts&... args)
+    void retrieve_data(Fs&... fundamentals)
     {
-
+        free_copy_buffer_back(fundamentals...);
     }
 
     constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
-    constexpr int get_count() const { return _buffer.size(); }
-    auto get_data() const { return _buffer.data(); }
+    int get_count() const { return _buffer.size(); }
+    auto get_data() { return _buffer.data(); }
 
 private:
+
+    template<typename T>
+    void copy_buffer_back(size_t offset, T& head)
+    {
+        // check if offset matches alignment of head
+        if (auto mod = offset % alignof(T) != 0)
+            offset += alignof(T) - mod;
+        
+        std::memcpy(&head, _buffer.data() + offset, sizeof(head)); 
+    }
+    template<typename T, typename... Ts>
+    void copy_buffer_back(size_t offset, T& head, Ts&... tail)
+    {
+        // check if offset matches alignment of head
+        if (auto mod = offset % alignof(T) != 0)
+            offset += alignof(T) - mod;
+        
+        std::memcpy(&head, _buffer.data() + offset, sizeof(head));
+        offset += sizeof(T);
+
+        copy_buffer_back(offset, tail...);
+    }
+    void free_copy_buffer_back(Fs&... fundamentals)
+    {
+        size_t offset = 0;
+
+        copy_buffer_back(offset, fundamentals...);
+    }
+
     std::pmr::vector<std::byte> _buffer;
 };
 
@@ -81,7 +110,7 @@ class Data<SR, MemRes, Rs...>
 {
 public:
     // constructor that fills the internal _buffer
-    Data(SR, MemRes& mem_res, Rs... ranges)
+    Data(SR, MemRes& mem_res, Rs&... ranges)
         : _buffer{ &mem_res }
     {
         if constexpr ( std::is_same_v<SR, Send>)
@@ -106,32 +135,25 @@ private:
     std::pmr::vector<BufferType> _buffer;
 };
 
-// Specialization case: used for ranges
-template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, are_input_ranges... Rs> 
+// Specialization case: used for a single range or view (this means we don't have to copy to internal buffers)
+template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, std::ranges::input_range R> 
     // requires are_same_types<Rs...> 
-    requires can_be_refed<Rs...>
-class Data<SR, MemRes, Rs...>
+    // requires can_be_refed<Rs...>
+class Data<SR, MemRes, R>
 {
 public:
     // TODO: works with views, but ranges need to be given by reference for this to work
     // data is only referenced by _buffer_ptr, so no copying done
-    Data(SR, MemRes&, Rs&... ranges)
-        requires are_only_ranges<Rs...>
+    Data(SR, MemRes&, R& range)
     {
-        _buffer_ptr = free_get_buffer_ptr(ranges...);
-        _buffer_size = static_cast<int>(free_get_range_size(ranges...));
+        _buffer_ptr = get_buffer_ptr(range);
+        _buffer_size = static_cast<int>(get_range_size(range));
     }
 
-    Data(SR, MemRes&, Rs... ranges)
-        requires are_only_views<Rs...>
+    void retrieve_data(R& range)
     {
-        _buffer_ptr = free_get_buffer_ptr(ranges...);
-        _buffer_size = static_cast<int>(free_get_range_size(ranges...));
-    }
-
-    void retrieve_data(Rs&... ranges)
-    {
-        free_copy_to_range(ranges...);
+        if (_buffer_ptr != get_buffer_ptr(range))
+            copy_to_range(range);
     }
 
     constexpr MPI_Datatype get_type() const { return Type2MPI::transform(BufferType{}); }
@@ -140,32 +162,16 @@ public:
 
 private:
     // underlying type of the buffer
-    typedef decltype(free_get_types<Rs...>()) BufferType;
+    typedef decltype(free_get_types<R>()) BufferType;
 
     template<typename T>
-    BufferType* get_buffer_ptr(T& head) 
-    { 
-        // return std::addressof(*head.begin());
-        return head.data(); 
-    }
-    template<typename... Ts>
-    BufferType* free_get_buffer_ptr(Ts&... ranges) { return get_buffer_ptr(ranges...); }
+    BufferType* get_buffer_ptr(T& head) { /* return std::addressof(*head.begin()); */ return head.data(); }
 
     template<typename T>
-    auto free_get_range_size(T& head) { return std::ranges::distance(head); }
-    template<typename... Ts>
-    auto free_get_range_size(Ts&... ranges) { return get_range_size(ranges...); }
+    auto get_range_size(T& head) { return std::ranges::distance(head); }
 
     template<typename T>
-    void copy_to_range(T range)
-    {
-        std::memcpy(range.data(), _buffer_ptr, _buffer_size * sizeof(BufferType));
-    }
-    template<typename... Ts>
-    void free_copy_to_range(Ts... ranges)
-    {
-        copy_to_range(ranges...);
-    }
+    void copy_to_range(T range) { std::memcpy(range.data(), _buffer_ptr, _buffer_size * sizeof(BufferType)); }
 
     BufferType* _buffer_ptr {};
     int _buffer_size {};
