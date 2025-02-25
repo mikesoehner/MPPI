@@ -40,7 +40,8 @@ struct Recv{};
 template<typename T>
 concept is_send_or_recv = ( std::is_same_v<T, Send> || std::is_same_v<T, Recv> );
 
-// Base class, never used
+
+/* ------------------------------ Base: never used ------------------------------ */
 template<typename... Ts>
 class Data
 {
@@ -49,7 +50,7 @@ public:
 };
 
 
-// Specialization case: used for simple datatypes made up of fundamentals
+/* ------------------------------ Specialization: multiple fundamentals ------------------------------ */
 template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, are_fundamentals... Fs>
 class Data<SR, MemRes, Fs...>
 {
@@ -57,15 +58,17 @@ public:
     Data(SR, MemRes& memres, Fs... fundamentals)
         : _buffer { &memres } 
     {
-        _buffer.resize(free_array_size(Fs{}...));
+        std::size_t offset = 0;
+        _buffer.resize(size_of_fundamentals(offset, fundamentals...));
         // if we are sending data, we need to copy the args
         if constexpr ( std::is_same_v<SR, Send> )
-            free_fill_buffer(_buffer.data(), fundamentals...);
+            fill_buffer(_buffer.data(), offset, fundamentals...);
     }
 
     void retrieve_data(Fs&... fundamentals)
     {
-        free_copy_buffer_back(fundamentals...);
+        size_t offset = 0;
+        fill_fundamentals(offset, fundamentals...);
     }
 
     constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -73,39 +76,88 @@ public:
     auto get_data() { return _buffer.data(); }
 
 private:
-
+    // calculate size of types including algnment
+    // overload
     template<typename T>
-    void copy_buffer_back(size_t offset, T& head)
+    constexpr std::size_t size_of_fundamentals(size_t offset, T const& /* head */)
     {
         // check if offset matches alignment of head
-        if (auto mod = offset % alignof(T) != 0)
+        auto mod = offset % alignof(T);
+        if (mod != 0)
+            offset += alignof(T) - mod;
+
+        offset += sizeof(T);
+        return offset;
+    }
+    // base case
+    template<typename T, typename... Ts>
+    constexpr std::size_t size_of_fundamentals(size_t offset, T const& /* head */, Ts const&... tail)
+    {
+        // check if offset matches alignment of head
+        auto mod = offset % alignof(T);
+        if (mod != 0)
+            offset += alignof(T) - mod;
+        
+        offset += sizeof(T);
+        return size_of_fundamentals(offset, tail...);
+    }
+
+    // put values of variadic template into buffer of bytes
+    // overload
+    template<typename T>
+    constexpr void fill_buffer(std::byte* buffer, size_t offset, T const& head) 
+    {
+        // check if offset matches alignment of head
+        auto mod = offset % alignof(T);
+        if (mod != 0)
+            offset += alignof(T) - mod;
+        
+        std::memcpy(buffer + offset, &head, sizeof(head));
+    }
+    // base case
+    template<typename T, typename... Ts>
+    constexpr void fill_buffer(std::byte* buffer, size_t offset, T const& head, Ts const&... tail)
+    {
+        // check if offset matches alignment of head
+        auto mod = offset % alignof(T);
+        if (mod != 0)
+            offset += alignof(T) - mod;
+        
+        std::memcpy(buffer + offset, &head, sizeof(head));
+        offset += sizeof(head);
+        fill_buffer(buffer, offset, tail...);
+    }
+
+
+    template<typename T>
+    void fill_fundamentals(size_t offset, T& head)
+    {
+        // check if offset matches alignment of head
+        auto mod = offset % alignof(T);
+        if (mod != 0)
             offset += alignof(T) - mod;
         
         std::memcpy(&head, _buffer.data() + offset, sizeof(head)); 
     }
     template<typename T, typename... Ts>
-    void copy_buffer_back(size_t offset, T& head, Ts&... tail)
+    void fill_fundamentals(size_t offset, T& head, Ts&... tail)
     {
         // check if offset matches alignment of head
-        if (auto mod = offset % alignof(T) != 0)
+        auto mod = offset % alignof(T);
+        if (mod != 0)
             offset += alignof(T) - mod;
         
         std::memcpy(&head, _buffer.data() + offset, sizeof(head));
         offset += sizeof(T);
 
-        copy_buffer_back(offset, tail...);
-    }
-    void free_copy_buffer_back(Fs&... fundamentals)
-    {
-        size_t offset = 0;
-
-        copy_buffer_back(offset, fundamentals...);
+        fill_fundamentals(offset, tail...);
     }
 
     std::pmr::vector<std::byte> _buffer;
 };
 
-// Specialization case: used for ranges
+
+/* ------------------------------ Specialization: multiple ranges ------------------------------ */
 template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, are_input_ranges... Rs> 
     // requires are_same_types<Rs...> 
     requires must_be_copied<Rs...>
@@ -117,14 +169,14 @@ public:
         : _buffer{ &mem_res }
     {
         if constexpr ( std::is_same_v<SR, Send>)
-            free_fill_range(_buffer, ranges...);
+            fill_buffer(_buffer, ranges...);
         else
-            free_resize_range(_buffer, ranges...);
+            _buffer.resize(range_size(ranges...));
     }
 
     void retrieve_data(Rs&... ranges)
     {
-        free_copy_range(_buffer, ranges...);
+        fill_range(_buffer.data(), ranges...);
     }
     
     constexpr MPI_Datatype get_type() const { return Type2MPI::transform(BufferType{}); }
@@ -133,15 +185,51 @@ public:
 
 private:
     // underlying type of the buffer
-    typedef decltype(free_get_types<Rs...>()) BufferType;
+    typedef decltype(get_first_underlying_type<Rs...>()) BufferType;
+
+    // base case
+    template<typename C, typename T>
+    constexpr void fill_buffer(C& container, T const& head)
+    {
+        std::ranges::copy(head, std::back_inserter(container));
+    }
+    // specialization case
+    template<typename C, typename T, typename... Ts>
+    constexpr void fill_buffer(C& container, T const& head, Ts const&... tail)
+    {
+        std::ranges::copy(head, std::back_inserter(container));
+
+        fill_buffer(_buffer, tail...);
+    }
+
+    // base case
+    template<typename Iter, typename T>
+    constexpr void fill_range(Iter iter, T const& head)
+    {
+        auto range_size = std::ranges::distance(head);
+        auto iter_end = iter + range_size;
+
+        std::ranges::copy(iter, iter_end, head.begin());
+    }
+    // specialization case
+    template<typename Iter, typename T, typename... Ts>
+    constexpr void fill_range(Iter iter, T const& head, Ts const&... tail)
+    {
+        auto range_size = std::ranges::distance(head);
+        auto iter_end = iter + range_size;
+
+        std::ranges::copy(iter, iter_end, head.begin());
+
+        iter = std::move(iter_end);
+        fill_range(iter, tail...);
+    }
 
     std::pmr::vector<BufferType> _buffer;
 };
 
-// Specialization case: used for a single range or view (this means we don't have to copy to internal buffers)
-template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, std::ranges::input_range R> 
-    // requires are_same_types<Rs...> 
-    // requires can_be_refed<Rs...>
+
+/* ------------------------------ Specialization: single ranges ------------------------------ */
+template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, std::ranges::input_range R>
 class Data<SR, MemRes, R>
 {
 public:
@@ -165,7 +253,7 @@ public:
 
 private:
     // underlying type of the buffer
-    typedef decltype(free_get_types<R>()) BufferType;
+    typedef decltype(get_first_underlying_type<R>()) BufferType;
 
     template<typename T>
     BufferType* get_buffer_ptr(T& head) { /* return std::addressof(*head.begin()); */ return head.data(); }
