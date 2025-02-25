@@ -13,6 +13,9 @@
 
 #include "parameter_pack_helpers.hpp"
 #include "custom_concepts.hpp"
+#include "datapattern.hpp"
+
+#include "mpi.h"
 
 // functions to transform standard types to MPI types
 namespace Type2MPI {
@@ -175,6 +178,80 @@ private:
 
     BufferType* _buffer_ptr {};
     int _buffer_size {};
+};
+
+
+/* ------------------------------ Specialization: ranges with DataPattern ------------------------------ */
+template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, typename... Ts, are_input_ranges... Rs> 
+class Data<SR, MemRes, DataPattern<Ts...>, Rs...>
+{
+public:
+    // constructor that fills the internal _buffer
+    Data(SR, MemRes& mem_res, DataPattern<Ts...>& data_pattern, Rs&... ranges)
+        : _buffer{ &mem_res }
+    {
+        // resize _buffer
+        _buffer.resize(range_size(ranges...) * data_pattern.get_size());
+        // check if we want to send and have to copy the data
+        if constexpr ( std::is_same_v<SR, Send>)
+        {
+            // copy data
+            size_t offset = 0;
+            fill_pattern(_buffer.data(), data_pattern, offset, ranges...);
+        }
+    }
+
+    void retrieve_data(DataPattern<Ts...>& data_pattern, Rs&... ranges)
+    {
+        size_t offset = 0;
+        fill_buffer(data_pattern, _buffer.data(), offset, ranges...);
+    }
+    
+    constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
+    int get_count() const { return _buffer.size(); }
+    auto get_data() { return _buffer.data(); }
+
+private:
+    // base case
+    template<typename C, typename Pattern, typename U>
+    constexpr void fill_pattern(C* container_ptr, Pattern& pattern, size_t offset, U& range)
+    {
+        // loop through range
+        for (auto& element : range)
+            offset = pattern.store_from_type(container_ptr, &element, offset);
+    }
+    // specialization case
+    template<typename C, typename Pattern, typename U, typename... Us>
+    constexpr void fill_pattern(C* container_ptr, Pattern& pattern, size_t offset, U& range, Us&... tail)
+    {
+        // loop through range
+        for (auto& element : range)
+            offset = pattern.store_from_type(container_ptr, &element, offset);
+
+        fill_pattern(container_ptr, pattern, offset, tail...);
+    }
+
+    // base case
+    template<typename C, typename Pattern, typename U>
+    constexpr void fill_buffer(Pattern& pattern, C* container_ptr, size_t offset, U& range)
+    {
+        // loop through range
+        for (auto& element : range)
+            offset = pattern.load_to_type(&element, container_ptr, offset);
+    }
+    // specialization case
+    template<typename C, typename Pattern, typename U, typename... Us>
+    constexpr void fill_buffer(Pattern& pattern, C* container_ptr, size_t offset, U& range, Us&... tail)
+    {
+        // loop through range
+        for (auto& element : range)
+            offset = pattern.load_to_type(&element, container_ptr, offset);
+
+        fill_buffer(pattern, container_ptr, offset, tail...);
+    }
+
+
+    std::pmr::vector<std::byte> _buffer;
 };
 
 #endif

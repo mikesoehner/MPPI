@@ -30,6 +30,14 @@ public:
         MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm); 
     }
 
+    template<typename... Ts, are_input_ranges... Rs>
+    void send(int destination, Tag tag, DataPattern<Ts...>& data_pattern, Rs... ranges)
+    {
+        Data data(Send{}, _pool, data_pattern, ranges...);
+        MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm);
+    }
+
+    // TODO: It is bad to have these 3 separate functions that basically do the same
     template<are_fundamentals... Fs>
     auto recv(int source, Tag tag, Fs&... fundamentals)
     {
