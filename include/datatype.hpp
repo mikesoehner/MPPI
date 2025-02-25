@@ -275,7 +275,7 @@ class Data<SR, MemRes, DataPattern<Ts...>, Rs...>
 {
 public:
     // constructor that fills the internal _buffer
-    Data(SR, MemRes& mem_res, DataPattern<Ts...>& data_pattern, Rs&... ranges)
+    Data(SR, MemRes& mem_res, DataPattern<Ts...> const& data_pattern, Rs&... ranges)
         : _buffer{ &mem_res }
     {
         // resize _buffer
@@ -289,7 +289,7 @@ public:
         }
     }
 
-    void retrieve_data(DataPattern<Ts...>& data_pattern, Rs&... ranges)
+    void retrieve_data(DataPattern<Ts...> const& data_pattern, Rs&... ranges)
     {
         size_t offset = 0;
         fill_buffer(data_pattern, _buffer.data(), offset, ranges...);
@@ -302,7 +302,7 @@ public:
 private:
     // base case
     template<typename C, typename Pattern, typename U>
-    constexpr void fill_pattern(C* container_ptr, Pattern& pattern, size_t offset, U& range)
+    constexpr void fill_pattern(C* container_ptr, Pattern const& pattern, size_t offset, U& range)
     {
         // loop through range
         for (auto& element : range)
@@ -310,7 +310,7 @@ private:
     }
     // specialization case
     template<typename C, typename Pattern, typename U, typename... Us>
-    constexpr void fill_pattern(C* container_ptr, Pattern& pattern, size_t offset, U& range, Us&... tail)
+    constexpr void fill_pattern(C* container_ptr, Pattern const& pattern, size_t offset, U& range, Us&... tail)
     {
         // loop through range
         for (auto& element : range)
@@ -321,7 +321,7 @@ private:
 
     // base case
     template<typename C, typename Pattern, typename U>
-    constexpr void fill_buffer(Pattern& pattern, C* container_ptr, size_t offset, U& range)
+    constexpr void fill_buffer(Pattern const& pattern, C* container_ptr, size_t offset, U& range)
     {
         // loop through range
         for (auto& element : range)
@@ -329,7 +329,7 @@ private:
     }
     // specialization case
     template<typename C, typename Pattern, typename U, typename... Us>
-    constexpr void fill_buffer(Pattern& pattern, C* container_ptr, size_t offset, U& range, Us&... tail)
+    constexpr void fill_buffer(Pattern const& pattern, C* container_ptr, size_t offset, U& range, Us&... tail)
     {
         // loop through range
         for (auto& element : range)

@@ -19,12 +19,12 @@ public:
         adjust_for_first_element(members...);   
     }
 
-    size_t store_from_type(std::byte* dest, Origin* base, size_t offset) 
+    size_t store_from_type(std::byte* dest, Origin* base, size_t offset) const
     {
         return store_to_dest<0>(dest, reinterpret_cast<std::byte*>(base), offset, Members{}...);
     }
 
-    size_t load_to_type(Origin* base, std::byte* src, size_t offset)
+    size_t load_to_type(Origin* base, std::byte* src, size_t offset) const
     {
         return load_from_src<0>(reinterpret_cast<std::byte*>(base), src, offset, Members{}...);
     }
@@ -37,7 +37,7 @@ private:
     constexpr void fill_displs_buffer(Origin* origin, size_t offset, T& head)
     {
         // displacement between start of struct and start of the value we want to copy
-        _displacement_ptrs[I] = reinterpret_cast<std::byte*>(&head) - reinterpret_cast<std::byte*>(origin);
+        _displacements[I] = reinterpret_cast<std::byte*>(&head) - reinterpret_cast<std::byte*>(origin);
         // displacement between data in the buffer we copy into
         auto mod = offset % alignof(T);
         if (mod != 0)
@@ -52,7 +52,7 @@ private:
     constexpr void fill_displs_buffer(Origin* origin, size_t offset, T& head, Ts&... tail)
     {
         // displacement between start of struct and start of the value we want to copy
-        _displacement_ptrs[I] = reinterpret_cast<std::byte*>(&head) - reinterpret_cast<std::byte*>(origin);
+        _displacements[I] = reinterpret_cast<std::byte*>(&head) - reinterpret_cast<std::byte*>(origin);
         // displacement between data in the buffer we copy into
         auto mod = offset % alignof(T);
         if (mod != 0)
@@ -72,7 +72,7 @@ private:
     }
 
     template<int I, typename T>
-    constexpr size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, T const& head)
+    constexpr size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, T const& head) const
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
@@ -80,12 +80,12 @@ private:
             offset += alignof(T) - mod;
 
         dest += offset;
-        std::memcpy(dest, origin + _displacement_ptrs[I], sizeof(T));
+        std::memcpy(dest, origin + _displacements[I], sizeof(T));
 
         return offset + sizeof(T);
     }
     template<int I, typename T, typename... Ts>
-    constexpr size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, T const& head, Ts const&... tail)
+    constexpr size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, T const& head, Ts const&... tail) const
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
@@ -93,7 +93,7 @@ private:
             offset += alignof(T) - mod;
         
         dest += offset;
-        std::memcpy(dest, origin + _displacement_ptrs[I], sizeof(T));
+        std::memcpy(dest, origin + _displacements[I], sizeof(T));
 
         offset += sizeof(T);
 
@@ -101,7 +101,7 @@ private:
     }
 
     template<int I, typename T>
-    constexpr size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, T const& head)
+    constexpr size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, T const& head) const
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
@@ -109,12 +109,12 @@ private:
             offset += alignof(T) - mod;
 
         src += offset;
-        std::memcpy(origin + _displacement_ptrs[I], src, sizeof(T));
+        std::memcpy(origin + _displacements[I], src, sizeof(T));
 
         return offset + sizeof(T);
     }
     template<int I, typename T, typename... Ts>
-    constexpr size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, T const& head, Ts const&...  tail)
+    constexpr size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, T const& head, Ts const&...  tail) const
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
@@ -122,14 +122,14 @@ private:
             offset += alignof(T) - mod;
 
         src += offset;
-        std::memcpy(origin + _displacement_ptrs[I], src, sizeof(T));
+        std::memcpy(origin + _displacements[I], src, sizeof(T));
 
         offset += sizeof(T);
 
         return load_from_src<I+1>(origin, src, offset, tail...);
     }
 
-    std::array<long, sizeof...(Members)> _displacement_ptrs;
+    std::array<long, sizeof...(Members)> _displacements;
     size_t _size {0};
 };
 

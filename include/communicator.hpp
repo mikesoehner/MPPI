@@ -31,7 +31,7 @@ public:
     }
 
     template<typename... Ts, are_input_ranges... Rs>
-    void send(int destination, Tag tag, DataPattern<Ts...>& data_pattern, Rs... ranges)
+    void send(int destination, Tag tag, DataPattern<Ts...> const& data_pattern, Rs... ranges)
     {
         Data data(Send{}, _pool, data_pattern, ranges...);
         MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm);
