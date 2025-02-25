@@ -68,6 +68,16 @@ public:
         data.retrieve_data(views...);
     }
 
+    template<typename... Ts, are_only_ranges... Rs>
+    auto recv(int source, Tag tag, DataPattern<Ts...> const& data_pattern, Rs&... ranges)
+    {
+        Data data(Recv{}, _pool, data_pattern, ranges...);
+
+        MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source, tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
+
+        data.retrieve_data(data_pattern , ranges...);
+    }
+
 private:
     // stores MPI container
     MPI_Comm _mpi_comm {};

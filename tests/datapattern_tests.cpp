@@ -17,7 +17,7 @@ TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
         int& get_a() { return _a; }
         int& get_b() { return _b; }
         double& get_c() { return _c; }
-        float& get_d() { return _d[0]; }
+        std::array<float, 3>& get_d() { return _d; }
 
     private:
         int _a {};
@@ -57,7 +57,7 @@ TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
         tests.emplace_back(Test(4, 5, 6.0, {7.0f, 8.0f, 9.0f}));
 
         Test test;
-        DataPattern data_pattern(&test, test.get_a(), test.get_c());
+        DataPattern data_pattern(&test, test.get_a(), test.get_c(), test.get_d());
 
         std::pmr::monotonic_buffer_resource mem_res {};
         auto view = tests | std::ranges::views::all;
@@ -72,15 +72,18 @@ TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
         data.retrieve_data(data_pattern, tests);
 
         REQUIRE(tests[0].get_a() == 1);
-        REQUIRE(std::abs(tests[0].get_c() - 3.0) < 0.00001);
-
         REQUIRE(tests[1].get_a() == 2);
-        REQUIRE(std::abs(tests[1].get_c() - 4.0) < 0.00001);
-
         REQUIRE(tests[2].get_a() == 3);
-        REQUIRE(std::abs(tests[2].get_c() - 5.0) < 0.00001);
-
         REQUIRE(tests[3].get_a() == 4);
+
+        REQUIRE(std::abs(tests[0].get_c() - 3.0) < 0.00001);
+        REQUIRE(std::abs(tests[1].get_c() - 4.0) < 0.00001);
+        REQUIRE(std::abs(tests[2].get_c() - 5.0) < 0.00001);
         REQUIRE(std::abs(tests[3].get_c() - 6.0) < 0.00001);
+
+        REQUIRE(std::abs(tests[0].get_d()[0] - 4.0f) < 0.00001f);
+        REQUIRE(std::abs(tests[1].get_d()[0] - 5.0f) < 0.00001f);
+        REQUIRE(std::abs(tests[2].get_d()[0] - 6.0f) < 0.00001f);
+        REQUIRE(std::abs(tests[3].get_d()[0] - 7.0f) < 0.00001f);
     }
 }
