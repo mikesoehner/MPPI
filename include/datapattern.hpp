@@ -37,7 +37,7 @@ private:
     constexpr void fill_displs_buffer(Origin* origin, size_t offset, T& head)
     {
         // displacement between start of struct and start of the value we want to copy
-        _displacements[I] = reinterpret_cast<std::byte*>(&head) - reinterpret_cast<std::byte*>(origin);
+        _displacements[I] = std::distance(reinterpret_cast<std::byte*>(origin), reinterpret_cast<std::byte*>(&head));
         // displacement between data in the buffer we copy into
         auto mod = offset % alignof(T);
         if (mod != 0)
@@ -52,7 +52,7 @@ private:
     constexpr void fill_displs_buffer(Origin* origin, size_t offset, T& head, Ts&... tail)
     {
         // displacement between start of struct and start of the value we want to copy
-        _displacements[I] = reinterpret_cast<std::byte*>(&head) - reinterpret_cast<std::byte*>(origin);
+        _displacements[I] = std::distance(reinterpret_cast<std::byte*>(origin), reinterpret_cast<std::byte*>(&head));
         // displacement between data in the buffer we copy into
         auto mod = offset % alignof(T);
         if (mod != 0)
@@ -125,7 +125,7 @@ private:
         return load_from_src<I+1>(origin, src, offset, tail...);
     }
 
-    std::array<long, sizeof...(Members)> _displacements;
+    std::array<std::ptrdiff_t, sizeof...(Members)> _displacements;
     size_t _size {0};
 };
 
