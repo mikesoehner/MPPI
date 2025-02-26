@@ -76,6 +76,11 @@ TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
         REQUIRE(tests[2].get_a() == 3);
         REQUIRE(tests[3].get_a() == 4);
 
+        REQUIRE(tests[0].get_b() == 0);
+        REQUIRE(tests[1].get_b() == 0);
+        REQUIRE(tests[2].get_b() == 0);
+        REQUIRE(tests[3].get_b() == 0);
+
         REQUIRE(std::abs(tests[0].get_c() - 3.0) < 0.00001);
         REQUIRE(std::abs(tests[1].get_c() - 4.0) < 0.00001);
         REQUIRE(std::abs(tests[2].get_c() - 5.0) < 0.00001);

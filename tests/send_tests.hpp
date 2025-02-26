@@ -148,6 +148,11 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             REQUIRE(tests_vec[2].get_a() == 3);
             REQUIRE(tests_vec[3].get_a() == 4);
 
+            REQUIRE(tests_vec[0].get_b() == 0);
+            REQUIRE(tests_vec[1].get_b() == 0);
+            REQUIRE(tests_vec[2].get_b() == 0);
+            REQUIRE(tests_vec[3].get_b() == 0);
+
             REQUIRE(std::abs(tests_vec[0].get_d()[0] - 4.0f) < 0.00001f);
             REQUIRE(std::abs(tests_vec[1].get_d()[0] - 5.0f) < 0.00001f);
             REQUIRE(std::abs(tests_vec[2].get_d()[0] - 6.0f) < 0.00001f);
