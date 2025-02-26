@@ -79,8 +79,7 @@ private:
         if (mod != 0)
             offset += alignof(T) - mod;
 
-        dest += offset;
-        std::memcpy(dest, origin + _displacements[I], sizeof(T));
+        std::memcpy(dest + offset, origin + _displacements[I], sizeof(T));
 
         return offset + sizeof(T);
     }
@@ -92,8 +91,7 @@ private:
         if (mod != 0)
             offset += alignof(T) - mod;
         
-        dest += offset;
-        std::memcpy(dest, origin + _displacements[I], sizeof(T));
+        std::memcpy(dest + offset, origin + _displacements[I], sizeof(T));
 
         offset += sizeof(T);
 
@@ -108,8 +106,7 @@ private:
         if (mod != 0)
             offset += alignof(T) - mod;
 
-        src += offset;
-        std::memcpy(origin + _displacements[I], src, sizeof(T));
+        std::memcpy(origin + _displacements[I], src + offset, sizeof(T));
 
         return offset + sizeof(T);
     }
@@ -121,8 +118,7 @@ private:
         if (mod != 0)
             offset += alignof(T) - mod;
 
-        src += offset;
-        std::memcpy(origin + _displacements[I], src, sizeof(T));
+        std::memcpy(origin + _displacements[I], src + offset, sizeof(T));
 
         offset += sizeof(T);
 
