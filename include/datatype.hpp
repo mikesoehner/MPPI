@@ -255,11 +255,9 @@ private:
     // underlying type of the buffer
     typedef decltype(get_first_underlying_type<R>()) BufferType;
 
-    template<typename T>
-    BufferType* get_buffer_ptr(T& head) { /* return std::addressof(*head.begin()); */ return head.data(); }
+    BufferType* get_buffer_ptr(R& range) { /*return std::addressof(*head.begin());*/ return range.data(); }
 
-    template<typename T>
-    auto get_range_size(T& head) { return std::ranges::distance(head); }
+    auto get_range_size(R& range) const { return std::ranges::distance(range); }
 
     template<typename T>
     void copy_to_range(T range) { std::memcpy(range.data(), _buffer_ptr, _buffer_size * sizeof(BufferType)); }
