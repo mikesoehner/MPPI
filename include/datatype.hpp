@@ -284,15 +284,15 @@ public:
         if constexpr ( std::is_same_v<SR, Send>)
         {
             // copy data
-            size_t offset = 0;
-            fill_pattern(_buffer.data(), data_pattern, offset, ranges...);
+            constexpr size_t offset = 0;
+            fill_pattern(data_pattern, offset, ranges...);
         }
     }
 
     void retrieve_data(DataPattern<Ts...> const& data_pattern, Rs&... ranges)
     {
         size_t offset = 0;
-        fill_buffer(data_pattern, _buffer.data(), offset, ranges...);
+        fill_buffer(data_pattern, offset, ranges...);
     }
     
     constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -301,41 +301,41 @@ public:
 
 private:
     // base case
-    template<typename C, typename Pattern, typename U>
-    constexpr void fill_pattern(C* container_ptr, Pattern const& pattern, size_t offset, U& range)
+    template<typename Pattern, typename U>
+    constexpr void fill_pattern(Pattern const& pattern, size_t offset, U& range)
     {
         // loop through range
         for (auto& element : range)
-            offset = pattern.store_from_type(container_ptr, &element, offset);
+            offset = pattern.store_from_type(_buffer.data(), &element, offset);
     }
     // specialization case
-    template<typename C, typename Pattern, typename U, typename... Us>
-    constexpr void fill_pattern(C* container_ptr, Pattern const& pattern, size_t offset, U& range, Us&... tail)
+    template<typename Pattern, typename U, typename... Us>
+    constexpr void fill_pattern(Pattern const& pattern, size_t offset, U& range, Us&... tail)
     {
         // loop through range
         for (auto& element : range)
-            offset = pattern.store_from_type(container_ptr, &element, offset);
+            offset = pattern.store_from_type(_buffer.data(), &element, offset);
 
-        fill_pattern(container_ptr, pattern, offset, tail...);
+        fill_pattern(pattern, offset, tail...);
     }
 
     // base case
-    template<typename C, typename Pattern, typename U>
-    constexpr void fill_buffer(Pattern const& pattern, C* container_ptr, size_t offset, U& range)
+    template<typename Pattern, typename U>
+    constexpr void fill_buffer(Pattern const& pattern, size_t offset, U& range)
     {
         // loop through range
         for (auto& element : range)
-            offset = pattern.load_to_type(&element, container_ptr, offset);
+            offset = pattern.load_to_type(&element, _buffer.data(), offset);
     }
     // specialization case
-    template<typename C, typename Pattern, typename U, typename... Us>
-    constexpr void fill_buffer(Pattern const& pattern, C* container_ptr, size_t offset, U& range, Us&... tail)
+    template<typename Pattern, typename U, typename... Us>
+    constexpr void fill_buffer(Pattern const& pattern, size_t offset, U& range, Us&... tail)
     {
         // loop through range
         for (auto& element : range)
-            offset = pattern.load_to_type(&element, container_ptr, offset);
+            offset = pattern.load_to_type(&element, _buffer.data(), offset);
 
-        fill_buffer(pattern, container_ptr, offset, tail...);
+        fill_buffer(pattern, offset, tail...);
     }
 
 
