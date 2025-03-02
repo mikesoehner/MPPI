@@ -49,4 +49,5 @@
 # Visual Studio Code Build Directory
 build_vsc/
 build/
+build_release/
 .vscode/
