@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <ranges>
+#include <algorithm>
 
 
 // base case
