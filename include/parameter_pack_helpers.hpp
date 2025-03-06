@@ -6,19 +6,6 @@
 #include <algorithm>
 
 
-// base case
-template<typename R>
-constexpr inline size_t range_size(R& head)
-{
-    return std::ranges::distance(head);
-}
-// specialization case
-template<typename R, typename... Rs>
-constexpr inline size_t range_size(R& head, Rs&... tail)
-{
-    return std::ranges::distance(head) + range_size(tail...);
-}
-
 
 // base case
 template<typename R>

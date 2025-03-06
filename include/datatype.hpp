@@ -171,7 +171,7 @@ public:
         if constexpr ( std::is_same_v<SR, Send>)
             fill_buffer(_buffer, ranges...);
         else
-            _buffer.resize(range_size(ranges...));
+            _buffer.resize(ranges_size(ranges...));
     }
 
     void retrieve_data(Rs&... ranges)
@@ -228,7 +228,7 @@ private:
 };
 
 
-/* ------------------------------ Specialization: single ranges ------------------------------ */
+/* ------------------------------ Specialization: single range ------------------------------ */
 template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, std::ranges::input_range R>
 class Data<SR, MemRes, R>
 {
@@ -238,7 +238,7 @@ public:
     Data(SR, MemRes&, R& range)
     {
         _buffer_ptr = get_buffer_ptr(range);
-        _buffer_size = static_cast<int>(get_range_size(range));
+        _buffer_size = static_cast<int>(ranges_size(range));
     }
 
     void retrieve_data(R& range)
@@ -277,7 +277,7 @@ public:
         : _buffer{ &mem_res }
     {
         // resize _buffer
-        _buffer.resize(range_size(ranges...) * data_pattern.get_size());
+        _buffer.resize(ranges_size(ranges...) * data_pattern.get_size());
         // check if we want to send and have to copy the data
         if constexpr ( std::is_same_v<SR, Send>)
         {
