@@ -46,8 +46,8 @@ int main(int argc, char** argv)
     MPI_Status reqstat;
 
     std::vector<MPI_Datatype> mpi_types;
-    mpi_types.emplace_back(MPI_CHAR);
-    // mpi_types.emplace_back(MPI_DATATYPE_NULL);
+    // mpi_types.emplace_back(MPI_CHAR);
+    mpi_types.emplace_back(MPI_DATATYPE_NULL);
 
     TestClass test;
     DataPattern data_pattern(&test, test.get_a(), test.get_b(), test.get_d(), test.get_f());
@@ -59,14 +59,14 @@ int main(int argc, char** argv)
         if (mpi_type != MPI_DATATYPE_NULL)
             MPI_Type_size(mpi_type, &type_size);
         else
-            type_size = 32;
+            type_size = data_pattern.get_size();
         
         size_t min_message_size = type_size;
-        size_t max_message_size = 4194304;
+        size_t max_message_size = 4'194'304 * 4;
 
-        char type_name[128];
-        int resultlen {};
-        MPI_Type_get_name(mpi_type, type_name, &resultlen);
+        char type_name[128] = {"MPI_CUSTOM_TYPE"};
+        // int resultlen {};
+        // MPI_Type_get_name(mpi_type, type_name, &resultlen);
         if (comm.get_rank() == 0)
         {
             fprintf(stdout, "# Datatype: %s.\n", type_name);
@@ -74,16 +74,16 @@ int main(int argc, char** argv)
             fprintf(stdout, "%*s", 20, "Avg Latency(us)\n");
         }
         
-            // loop through message sizes
+        // loop through message sizes
         for (size_t size = min_message_size; size <= max_message_size; size *= 2)
         {
             // get number of elements in message
             auto nb_elements = size / type_size;
             // init buffers
-            // std::vector<TestClass> send_buf(nb_elements);
-            // std::vector<TestClass> recv_buf(nb_elements);
-            std::vector<char> send_buf(size);
-            std::vector<char> recv_buf(size);
+            std::vector<TestClass> send_buf(nb_elements);
+            std::vector<TestClass> recv_buf(nb_elements);
+            // std::vector<char> send_buf(size);
+            // std::vector<char> recv_buf(size);
             //
             MPI_Barrier(MPI_COMM_WORLD);
 
@@ -96,16 +96,16 @@ int main(int argc, char** argv)
                 {
                     double time_start = MPI_Wtime();
 
-                    comm.send(1, Tag(1), send_buf);
-                    comm.recv(1, Tag(1), recv_buf);
+                    comm.send(1, Tag(1), data_pattern, send_buf);
+                    comm.recv(1, Tag(1), data_pattern, recv_buf);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
                 }
                 else if (comm.get_rank() == 1)
                 {
-                    comm.recv(0, Tag(1), recv_buf);
-                    comm.send(0, Tag(1), send_buf);
+                    comm.recv(0, Tag(1), data_pattern, recv_buf);
+                    comm.send(0, Tag(1), data_pattern, send_buf);
                 }
             }
 
