@@ -34,7 +34,7 @@ public:
 private:
 
     template<int I, typename T>
-    constexpr void fill_displs_buffer(Origin* origin, size_t offset, T& head)
+    constexpr inline void fill_displs_buffer(Origin* origin, size_t offset, T& head)
     {
         // displacement between start of struct and start of the value we want to copy
         _displacements[I] = std::distance(reinterpret_cast<std::byte*>(origin), reinterpret_cast<std::byte*>(&head));
@@ -49,7 +49,7 @@ private:
         _size = offset;
     }
     template<int I, typename T, typename... Ts>
-    constexpr void fill_displs_buffer(Origin* origin, size_t offset, T& head, Ts&... tail)
+    constexpr inline void fill_displs_buffer(Origin* origin, size_t offset, T& head, Ts&... tail)
     {
         // displacement between start of struct and start of the value we want to copy
         _displacements[I] = std::distance(reinterpret_cast<std::byte*>(origin), reinterpret_cast<std::byte*>(&head));
@@ -64,7 +64,7 @@ private:
     }
 
     template<typename T, typename... Ts>
-    constexpr void adjust_for_first_element(T const& head, Ts const&... tails)
+    constexpr inline void adjust_for_first_element(T const& head, Ts const&... tails)
     {
         auto mod = _size % alignof(T);
         if (mod != 0)
@@ -72,7 +72,7 @@ private:
     }
 
     template<int I, typename T>
-    constexpr size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, T const& head) const
+    constexpr inline size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, T const& head) const
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
@@ -84,7 +84,7 @@ private:
         return offset + sizeof(T);
     }
     template<int I, typename T, typename... Ts>
-    constexpr size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, T const& head, Ts const&... tail) const
+    constexpr inline size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, T const& head, Ts const&... tail) const
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
@@ -99,7 +99,7 @@ private:
     }
 
     template<int I, typename T>
-    constexpr size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, T const& head) const
+    constexpr inline size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, T const& head) const
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
@@ -111,7 +111,7 @@ private:
         return offset + sizeof(T);
     }
     template<int I, typename T, typename... Ts>
-    constexpr size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, T const& head, Ts const&...  tail) const
+    constexpr inline size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, T const& head, Ts const&...  tail) const
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
