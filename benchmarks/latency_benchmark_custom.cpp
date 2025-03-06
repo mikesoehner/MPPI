@@ -1,5 +1,36 @@
 #include <iostream>
+#include <tuple>
 #include "communicator.hpp"
+
+class TestClass
+{
+public:
+    TestClass() = default;
+    TestClass(int a, int b, double c, std::array<float, 3> d, std::array<float, 3> e, std::array<float, 3> f)
+        : _a(a), _b(b), _c(c), _d(d), _e(e), _f(f)
+    {}
+
+    int& get_a() { return _a; }
+    int& get_b() { return _b; }
+    double& get_c() { return _c; }
+    std::array<float, 3>& get_d() { return _d; }
+    std::array<float, 3>& get_e() { return _e; }
+    std::array<float, 3>& get_f() { return _f; }
+
+private:
+    int _a {};
+    int _b {};
+    double _c {};
+    std::array<float, 3> _d {};
+    std::array<float, 3> _e {};
+    std::array<float, 3> _f {};
+};
+
+template<typename... Ts>
+constexpr size_t get_tuple_size(std::tuple<Ts...>)
+{
+    return sizeof...(Ts);
+}
 
 
 int main(int argc, char** argv)
@@ -21,22 +52,27 @@ int main(int argc, char** argv)
 
     MPI_Status reqstat;
 
+    TestClass test;
+    DataPattern data_pattern(&test, test.get_a(), test.get_b(), test.get_d(), test.get_f());
+
+    std::tuple data_patterns {data_pattern};
     std::vector<MPI_Datatype> mpi_types;
-    mpi_types.emplace_back(MPI_CHAR);
-   
+    mpi_types.emplace_back(MPI_DATATYPE_NULL);
+
+    // constexpr auto size = get_tuple_size(data_patterns);
+    // std::array<int, size> {std::make_integer_sequence<int, size>{}};
 
     // loop through different datatypes that should be benchmarked
     for (auto mpi_type : mpi_types)
     {
-        int type_size {};
-        MPI_Type_size(mpi_type, &type_size);
+        auto type_size = data_pattern.get_size();
+        
         size_t min_message_size = type_size;
         size_t max_message_size = 4'194'304 * 4;
 
-        char type_name[128];
-        int resultlen {};
-        MPI_Type_get_name(mpi_type, type_name, &resultlen);
-        
+        char type_name[128] = {"MPI_CUSTOM_TYPE"};
+        // int resultlen {};
+        // MPI_Type_get_name(mpi_type, type_name, &resultlen);
         if (comm.get_rank() == 0)
         {
             fprintf(stdout, "# Datatype: %s.\n", type_name);
@@ -50,8 +86,10 @@ int main(int argc, char** argv)
             // get number of elements in message
             auto nb_elements = size / type_size;
             // init buffers
-            std::vector<char> send_buf(size);
-            std::vector<char> recv_buf(size);
+            std::vector<TestClass> send_buf(nb_elements);
+            std::vector<TestClass> recv_buf(nb_elements);
+            // std::vector<char> send_buf(size);
+            // std::vector<char> recv_buf(size);
             //
             MPI_Barrier(MPI_COMM_WORLD);
 
@@ -64,16 +102,16 @@ int main(int argc, char** argv)
                 {
                     double time_start = MPI_Wtime();
 
-                    comm.send(1, Tag(1), send_buf);
-                    comm.recv(1, Tag(1), recv_buf);
+                    comm.send(1, Tag(1), data_pattern, send_buf);
+                    comm.recv(1, Tag(1), data_pattern, recv_buf);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
                 }
                 else if (comm.get_rank() == 1)
                 {
-                    comm.recv(0, Tag(1), recv_buf);
-                    comm.send(0, Tag(1), send_buf);
+                    comm.recv(0, Tag(1), data_pattern, recv_buf);
+                    comm.send(0, Tag(1), data_pattern, send_buf);
                 }
             }
 
