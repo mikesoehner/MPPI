@@ -1,20 +1,64 @@
 #ifndef MPPI_COMMUNICATOR_H
 #define MPPI_COMMUNICATOR_H
 
+
+#include <memory_resource>
+#include <vector>
+#include <format>
+#include <iostream>
+
 #include "mpi.h"
 #include "datatype.hpp"
 #include "tag.hpp"
 #include "parameter_pack_helpers.hpp"
-#include <memory_resource>
-#include <vector>
 
+
+class TrackAllocator : public std::pmr::memory_resource {
+    void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+        void* p = std::pmr::new_delete_resource()->allocate(bytes, alignment);
+        if (rank == 0) std::cout << std::format("  do_allocate: {:6} bytes at {}\n", bytes, p);
+        return p;
+    }
+ 
+    void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+        if (rank == 0) std::cout << std::format("  do_deallocate: {:4} bytes at {}\n", bytes, p);
+        return std::pmr::new_delete_resource()->deallocate(p, bytes, alignment);
+    }
+ 
+    bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+        return std::pmr::new_delete_resource()->is_equal(other);
+    }
+};
+
+
+class MPIAllocator : public std::pmr::memory_resource {
+    void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+        void* p;
+        MPI_Alloc_mem(static_cast<MPI_Aint>(bytes), MPI_INFO_NULL, &p);
+        return p;
+    }
+ 
+    void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
+        MPI_Free_mem(p);
+    }
+ 
+    bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+        return this == &other;
+    }
+};
 
 
 class Communicator
 {
 public:
     Communicator(MPI_Comm mpi_comm = MPI_COMM_WORLD)
-        : _mpi_comm(mpi_comm), _buffer{}, _pool{&_buffer}
+       : _mpi_comm(mpi_comm), _buffer{&_mpi_allocator}, _pool{std::pmr::pool_options{1, 1024*1024*1024}, &_buffer}
     {
         MPI_Comm_rank(_mpi_comm, &_rank);
         MPI_Comm_size(_mpi_comm, &_size);
@@ -85,6 +129,10 @@ private:
     int _rank {};
     int _size {};
 
+    // uses MPI_Alloc_mem
+    MPIAllocator _mpi_allocator;
+    // for debugging purposes
+    TrackAllocator _track_allocator;
     // resource that only allocates and not frees memory
     std::pmr::monotonic_buffer_resource _buffer;
     // resource that serves as memory pool for send and recv buffers
