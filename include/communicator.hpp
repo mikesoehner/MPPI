@@ -40,7 +40,14 @@ class TrackAllocator : public std::pmr::memory_resource {
 class MPIAllocator : public std::pmr::memory_resource {
     void* do_allocate(std::size_t bytes, std::size_t alignment) override {
         void* p;
-        MPI_Alloc_mem(static_cast<MPI_Aint>(bytes), MPI_INFO_NULL, &p);
+        MPI_Info info = MPI_INFO_NULL;
+        MPI_Info_create(&info);
+        // TODO: Is this size_t -> char conversion safe? Does it always fit?
+        std::array<char, 10> chars;
+        std::to_chars(chars.data(), chars.data() + chars.size(), alignment);
+        MPI_Info_set(info, "mpi_minimum_memory_alignment", chars.data());
+        MPI_Alloc_mem(static_cast<MPI_Aint>(bytes), info, &p);
+
         return p;
     }
  
