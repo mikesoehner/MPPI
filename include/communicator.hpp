@@ -75,14 +75,22 @@ public:
     auto get_size() const { return _size; }
 
     template<typename... Ts>
-    void send(int destination, Tag tag, Ts... ranges) 
+        requires are_fundamentals<Ts...>  || are_only_ranges<Ts...>
+    void send(int destination, Tag tag, Ts&... ranges)
     {
         Data data(Send{}, _pool, ranges...);
         MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm); 
     }
 
+    template<are_only_views... Vs>
+    void send(int destination, Tag tag, Vs... views) 
+    {
+        Data data(Send{}, _pool, views...);
+        MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm); 
+    }
+
     template<typename... Ts, are_input_ranges... Rs>
-    void send(int destination, Tag tag, DataPattern<Ts...> const& data_pattern, Rs... ranges)
+    void send(int destination, Tag tag, DataPattern<Ts...> const& data_pattern, Rs&... ranges)
     {
         Data data(Send{}, _pool, data_pattern, ranges...);
         MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm);
