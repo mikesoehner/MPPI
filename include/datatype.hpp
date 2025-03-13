@@ -79,7 +79,7 @@ private:
     // calculate size of types including algnment
     // overload
     template<typename T>
-    constexpr inline std::size_t size_of_fundamentals(size_t offset, T const& /* head */)
+    constexpr std::size_t size_of_fundamentals(size_t offset, T const& /* head */)
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
@@ -91,7 +91,7 @@ private:
     }
     // base case
     template<typename T, typename... Ts>
-    constexpr inline std::size_t size_of_fundamentals(size_t offset, T const& /* head */, Ts const&... tail)
+    constexpr std::size_t size_of_fundamentals(size_t offset, T const& /* head */, Ts const&... tail)
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
@@ -105,7 +105,7 @@ private:
     // put values of variadic template into buffer of bytes
     // overload
     template<typename T>
-    constexpr inline void fill_buffer(std::byte* buffer, size_t offset, T const& head) 
+    constexpr void fill_buffer(std::byte* buffer, size_t offset, T const& head) 
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
@@ -116,7 +116,7 @@ private:
     }
     // base case
     template<typename T, typename... Ts>
-    constexpr inline void fill_buffer(std::byte* buffer, size_t offset, T const& head, Ts const&... tail)
+    constexpr void fill_buffer(std::byte* buffer, size_t offset, T const& head, Ts const&... tail)
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
@@ -130,7 +130,7 @@ private:
 
 
     template<typename T>
-    constexpr inline void fill_fundamentals(size_t offset, T& head)
+    constexpr void fill_fundamentals(size_t offset, T& head)
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
@@ -140,7 +140,7 @@ private:
         std::memcpy(&head, _buffer.data() + offset, sizeof(head)); 
     }
     template<typename T, typename... Ts>
-    constexpr inline void fill_fundamentals(size_t offset, T& head, Ts&... tail)
+    constexpr void fill_fundamentals(size_t offset, T& head, Ts&... tail)
     {
         // check if offset matches alignment of head
         auto mod = offset % alignof(T);
@@ -300,7 +300,7 @@ public:
 private:
     // base case
     template<typename Pattern, typename U>
-    constexpr inline void fill_pattern(Pattern const& pattern, size_t offset, U& range)
+    constexpr void fill_pattern(Pattern const& pattern, size_t offset, U& range)
     {
         // loop through range
         for (auto& element : range)
@@ -308,7 +308,7 @@ private:
     }
     // specialization case
     template<typename Pattern, typename U, typename... Us>
-    constexpr inline void fill_pattern(Pattern const& pattern, size_t offset, U& range, Us&... tail)
+    constexpr void fill_pattern(Pattern const& pattern, size_t offset, U& range, Us&... tail)
     {
         // loop through range
         for (auto& element : range)
@@ -319,7 +319,7 @@ private:
 
     // base case
     template<typename Pattern, typename U>
-    constexpr inline void fill_buffer(Pattern const& pattern, size_t offset, U& range)
+    constexpr void fill_buffer(Pattern const& pattern, size_t offset, U& range)
     {
         // loop through range
         for (auto& element : range)
@@ -327,7 +327,7 @@ private:
     }
     // specialization case
     template<typename Pattern, typename U, typename... Us>
-    constexpr inline void fill_buffer(Pattern const& pattern, size_t offset, U& range, Us&... tail)
+    constexpr void fill_buffer(Pattern const& pattern, size_t offset, U& range, Us&... tail)
     {
         // loop through range
         for (auto& element : range)
