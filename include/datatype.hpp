@@ -255,7 +255,7 @@ private:
     // underlying type of the buffer
     typedef decltype(get_first_underlying_type<R>()) BufferType;
 
-    BufferType* get_buffer_ptr(R& range) { /*return std::addressof(*head.begin());*/ return range.data(); }
+    BufferType* get_buffer_ptr(R& range) { /*return std::addressof(*range.begin());*/ return range.data(); }
 
     auto get_range_size(R& range) const { return std::ranges::distance(range); }
 
