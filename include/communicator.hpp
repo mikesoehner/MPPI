@@ -96,19 +96,10 @@ public:
         MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm);
     }
 
-    // TODO: It is bad to have these 3 separate functions that basically do the same
-    template<are_fundamentals... Fs>
-    auto recv(int source, Tag tag, Fs&... fundamentals)
-    {
-        Data data(Recv{}, _pool, fundamentals...);
-
-        MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source, tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
-
-        data.retrieve_data(fundamentals...);
-    }
-
-    template<are_only_ranges... Rs>
-    auto recv(int source, Tag tag, Rs&... ranges)
+    // TODO: It is bad to have these 2 separate functions that basically do the same
+    template<typename... Ts>
+        requires are_fundamentals<Ts...> || are_only_ranges<Ts...>
+    auto recv(int source, Tag tag, Ts&... ranges)
     {
         Data data(Recv{}, _pool, ranges...);
 
