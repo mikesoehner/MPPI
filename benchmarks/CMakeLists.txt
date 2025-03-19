@@ -25,6 +25,14 @@ target_compile_features(latency_benchmark_control
         PRIVATE
             cxx_std_23)
 
+add_executable(latency_benchmark_stl latency_benchmark_stl.cpp)
+target_link_libraries(latency_benchmark_stl
+    PRIVATE 
+        MPI::MPI_CXX
+        mppi::mppi)
+target_compile_features(latency_benchmark_stl
+        PRIVATE
+            cxx_std_23)
 
 add_executable(bandwidth_benchmark_control bandwidth_benchmark_control.cpp)
 target_link_libraries(bandwidth_benchmark_control

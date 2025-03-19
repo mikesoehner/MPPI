@@ -26,12 +26,6 @@ private:
     std::array<float, 3> _f {};
 };
 
-template<typename... Ts>
-constexpr size_t get_tuple_size(std::tuple<Ts...>)
-{
-    return sizeof...(Ts);
-}
-
 
 int main(int argc, char** argv)
 {
@@ -59,11 +53,9 @@ int main(int argc, char** argv)
     std::vector<MPI_Datatype> mpi_types;
     mpi_types.emplace_back(MPI_DATATYPE_NULL);
 
-    // constexpr auto size = get_tuple_size(data_patterns);
-    // std::array<int, size> {std::make_integer_sequence<int, size>{}};
-
-    // loop through different datatypes that should be benchmarked
-    for (auto mpi_type : mpi_types)
+    constexpr auto size = std::tuple_size_v<decltype(data_patterns)>;
+    
+    auto benchmark = [&comm]<typename Pattern>(Pattern data_pattern)
     {
         auto type_size = data_pattern.get_size();
         
@@ -124,7 +116,15 @@ int main(int argc, char** argv)
                 fflush(stdout);
             }
         }
-    }
+    };
+
+    auto wrapper = [benchmark]<typename Tuple, std::size_t... Ids>(Tuple& tuple, std::index_sequence<Ids...>)
+    {
+        (benchmark(std::get<Ids>(tuple)), ...);
+    };
+
+    wrapper(data_patterns, std::make_index_sequence<size>{});
+
 
     MPI_Finalize();
     return 0;
