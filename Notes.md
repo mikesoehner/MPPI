@@ -17,3 +17,9 @@
 8. Link-time optimization?
 9. Look at other C++ MPI implementations: EnhancedMPI, ChronosMPI.
 10. Read Josephs paper from last year about derived datatypes.
+11. Change the "include" directory name to mppi, to be more expressive.
+12. MPI_CHAR vs MPI_BYTE
+13. Check for max bandwidth of 1 core (with stream?). How much of that do we get?
+14. Compile-time send size feature?
+15. (CUDA/HIP/)OpenMP device support?
+16. Implement reflection datapattern with experimental clang compiler.
