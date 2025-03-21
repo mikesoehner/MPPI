@@ -96,6 +96,13 @@ public:
         MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm);
     }
 
+    template<typename... Ts, are_only_views... Vs>
+    void send(int destination, Tag tag, DataPattern<Ts...> const& data_pattern, Vs... views)
+    {
+        Data data(Send{}, _pool, data_pattern, views...);
+        MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm);
+    }
+
     // TODO: It is bad to have these 2 separate functions that basically do the same
     template<typename... Ts>
         requires are_fundamentals<Ts...> || are_only_ranges<Ts...>
@@ -126,6 +133,16 @@ public:
         MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source, tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
 
         data.retrieve_data(data_pattern , ranges...);
+    }
+
+    template<typename... Ts, are_only_views... Vs>
+    auto recv(int source, Tag tag, DataPattern<Ts...> const& data_pattern, Vs... views)
+    {
+        Data data(Recv{}, _pool, data_pattern, views...);
+
+        MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source, tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
+
+        data.retrieve_data(data_pattern , views...);
     }
 
 private:

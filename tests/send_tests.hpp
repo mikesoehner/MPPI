@@ -236,4 +236,63 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             REQUIRE(std::abs(tests_vec[3].get_d()[0] - 7.0f) < 0.00001f);
         }
     }
+
+    SECTION("Sending a view of an stl container with a DataPattern")
+    {
+        class TestClass
+        {
+        public:
+            TestClass() = default;
+            TestClass(std::array<double, 2> a, double b, char c, int d)
+                : _a(a), _b(b), _c(c), _d(d)
+            {}
+    
+            auto& get_a() { return _a; }
+            auto& get_b() { return _b; }
+            auto& get_c() { return _c; }
+            auto& get_d() { return _d; }
+    
+        private:
+            std::array<double, 2> _a;
+            double _b;
+            char _c;
+            int _d;
+        };
+
+        TestClass testpattern;
+        DataPattern data_pattern(&testpattern, testpattern.get_a(), testpattern.get_b(), testpattern.get_d());
+
+        std::vector<TestClass> tests_vec;
+        
+        if (comm.get_rank() == 0)
+        {
+            tests_vec.emplace_back(TestClass({4.0, 5.0}, 2.0, 'w', 3));
+            tests_vec.emplace_back(TestClass({5.0, 6.0}, 3.0, 'x', 4));
+            tests_vec.emplace_back(TestClass({6.0, 7.0}, 4.0, 'y', 5));
+            tests_vec.emplace_back(TestClass({7.0, 8.0}, 5.0, 'z', 6));
+
+            comm.send(1, Tag(0), data_pattern, tests_vec | std::ranges::views::all);
+        }
+        else
+        {
+            tests_vec.resize(4);
+
+            comm.recv(0, Tag(0), data_pattern, tests_vec | std::ranges::views::all);
+
+            REQUIRE(std::abs(tests_vec[0].get_a()[0] - 4.0) < 0.00001);
+            REQUIRE(std::abs(tests_vec[1].get_a()[0] - 5.0) < 0.00001);
+            REQUIRE(std::abs(tests_vec[2].get_a()[0] - 6.0) < 0.00001);
+            REQUIRE(std::abs(tests_vec[3].get_a()[0] - 7.0) < 0.00001);
+
+            REQUIRE(std::abs(tests_vec[0].get_b() - 2.0) < 0.00001);
+            REQUIRE(std::abs(tests_vec[1].get_b() - 3.0) < 0.00001);
+            REQUIRE(std::abs(tests_vec[2].get_b() - 4.0) < 0.00001);
+            REQUIRE(std::abs(tests_vec[3].get_b() - 5.0) < 0.00001);
+
+            REQUIRE(tests_vec[0].get_d() == 3);
+            REQUIRE(tests_vec[1].get_d() == 4);
+            REQUIRE(tests_vec[2].get_d() == 5);
+            REQUIRE(tests_vec[3].get_d() == 6);
+        }
+    }
 }
