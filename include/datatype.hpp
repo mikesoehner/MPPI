@@ -58,17 +58,17 @@ public:
     Data(SR, MemRes& memres, Fs... fundamentals)
         : _buffer { &memres } 
     {
-        std::size_t offset = 0;
-        _buffer.resize(size_of_fundamentals(offset, fundamentals...));
+        constexpr std::size_t offset = 0;
+        _buffer.resize(size_of_fundamentals<offset>(offset, fundamentals...));
         // if we are sending data, we need to copy the args
         if constexpr ( std::is_same_v<SR, Send> )
-            fill_buffer(_buffer.data(), offset, fundamentals...);
+            fill_buffer<offset>(_buffer.data(), fundamentals...);
     }
 
     void retrieve_data(Fs&... fundamentals)
     {
-        size_t offset = 0;
-        fill_fundamentals(offset, fundamentals...);
+        constexpr size_t offset = 0;
+        fill_fundamentals<offset>(fundamentals...);
     }
 
     constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -78,79 +78,70 @@ public:
 private:
     // calculate size of types including algnment
     // overload
-    template<typename T>
-    constexpr inline std::size_t size_of_fundamentals(size_t offset, T const& /* head */)
+    template<size_t offset, typename T>
+    constexpr size_t size_of_fundamentals(T const& /* head */)
     {
         // check if offset matches alignment of head
-        auto mod = offset % alignof(T);
-        if (mod != 0)
-            offset += alignof(T) - mod;
+        constexpr auto mod = offset % alignof(T);
+        constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
 
-        offset += sizeof(T);
-        return offset;
+        return offset + sizeof(T) + adjust_for_alignment;
     }
     // base case
-    template<typename T, typename... Ts>
-    constexpr inline std::size_t size_of_fundamentals(size_t offset, T const& /* head */, Ts const&... tail)
+    template<size_t offset, typename T, typename... Ts>
+    constexpr size_t size_of_fundamentals(T const& /* head */, Ts const&... tail)
     {
         // check if offset matches alignment of head
-        auto mod = offset % alignof(T);
-        if (mod != 0)
-            offset += alignof(T) - mod;
-        
-        offset += sizeof(T);
-        return size_of_fundamentals(offset, tail...);
+        constexpr auto mod = offset % alignof(T);
+        constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
+
+        return size_of_fundamentals<offset + sizeof(T) + adjust_for_alignment>(tail...);
     }
 
     // put values of variadic template into buffer of bytes
     // overload
-    template<typename T>
-    constexpr inline void fill_buffer(std::byte* buffer, size_t offset, T const& head) 
+    template<size_t offset, typename T>
+    constexpr void fill_buffer(std::byte* buffer, T const& head) 
     {
         // check if offset matches alignment of head
-        auto mod = offset % alignof(T);
-        if (mod != 0)
-            offset += alignof(T) - mod;
+        constexpr auto mod = offset % alignof(T);
+        constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
         
-        std::memcpy(buffer + offset, &head, sizeof(head));
+        std::memcpy(buffer + offset + adjust_for_alignment, &head, sizeof(T));
     }
     // base case
-    template<typename T, typename... Ts>
-    constexpr inline void fill_buffer(std::byte* buffer, size_t offset, T const& head, Ts const&... tail)
+    template<size_t offset, typename T, typename... Ts>
+    constexpr void fill_buffer(std::byte* buffer, T const& head, Ts const&... tail)
     {
         // check if offset matches alignment of head
-        auto mod = offset % alignof(T);
-        if (mod != 0)
-            offset += alignof(T) - mod;
+        constexpr auto mod = offset % alignof(T);
+        constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
         
-        std::memcpy(buffer + offset, &head, sizeof(head));
-        offset += sizeof(head);
-        fill_buffer(buffer, offset, tail...);
+        std::memcpy(buffer + offset + adjust_for_alignment, &head, sizeof(T));
+
+        fill_buffer<offset + adjust_for_alignment + sizeof(T)>(buffer, tail...);
     }
 
 
-    template<typename T>
-    constexpr inline void fill_fundamentals(size_t offset, T& head)
+    template<size_t offset, typename T>
+    constexpr void fill_fundamentals(T& head)
     {
         // check if offset matches alignment of head
-        auto mod = offset % alignof(T);
-        if (mod != 0)
-            offset += alignof(T) - mod;
+        constexpr auto mod = offset % alignof(T);
+        constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
         
-        std::memcpy(&head, _buffer.data() + offset, sizeof(head)); 
+        std::memcpy(&head, _buffer.data() + offset + adjust_for_alignment, sizeof(T));
     }
-    template<typename T, typename... Ts>
-    constexpr inline void fill_fundamentals(size_t offset, T& head, Ts&... tail)
+    template<size_t offset, typename T, typename... Ts>
+    constexpr void fill_fundamentals(T& head, Ts&... tail)
     {
         // check if offset matches alignment of head
-        auto mod = offset % alignof(T);
-        if (mod != 0)
-            offset += alignof(T) - mod;
+        constexpr auto mod = offset % alignof(T);
+        constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
         
-        std::memcpy(&head, _buffer.data() + offset, sizeof(head));
-        offset += sizeof(T);
+        std::memcpy(&head, _buffer.data() + offset + adjust_for_alignment, sizeof(T));
 
-        fill_fundamentals(offset, tail...);
+        fill_fundamentals<offset + adjust_for_alignment + sizeof(T)>(tail...);
     }
 
     std::pmr::vector<std::byte> _buffer;
