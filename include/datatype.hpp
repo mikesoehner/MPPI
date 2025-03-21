@@ -150,8 +150,7 @@ private:
 
 /* ------------------------------ Specialization: multiple ranges ------------------------------ */
 template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, are_input_ranges... Rs> 
-    // requires are_same_types<Rs...> 
-    requires must_be_copied<Rs...>
+    requires are_same_types<Rs...> // underlying type of the ranges needs to be the same
 class Data<SR, MemRes, Rs...>
 {
 public:
@@ -167,7 +166,7 @@ public:
 
     void retrieve_data(Rs&... ranges)
     {
-        fill_range(_buffer.data(), ranges...);
+        fill_range(_buffer.begin(), ranges...);
     }
     
     constexpr MPI_Datatype get_type() const { return Type2MPI::transform(BufferType{}); }
@@ -180,13 +179,13 @@ private:
 
     // base case
     template<typename C, typename T>
-    constexpr inline void fill_buffer(C& container, T const& head)
+    constexpr void fill_buffer(C& container, T& head)
     {
         std::ranges::copy(head, std::back_inserter(container));
     }
     // specialization case
     template<typename C, typename T, typename... Ts>
-    constexpr inline void fill_buffer(C& container, T const& head, Ts const&... tail)
+    constexpr void fill_buffer(C& container, T& head, Ts&... tail)
     {
         std::ranges::copy(head, std::back_inserter(container));
 
@@ -195,7 +194,7 @@ private:
 
     // base case
     template<typename Iter, typename T>
-    constexpr inline void fill_range(Iter iter, T const& head)
+    constexpr void fill_range(Iter iter, T& head)
     {
         auto range_size = std::ranges::distance(head);
         auto iter_end = iter + range_size;
@@ -204,7 +203,7 @@ private:
     }
     // specialization case
     template<typename Iter, typename T, typename... Ts>
-    constexpr inline void fill_range(Iter iter, T const& head, Ts const&... tail)
+    constexpr void fill_range(Iter iter, T& head, Ts&... tail)
     {
         auto range_size = std::ranges::distance(head);
         auto iter_end = iter + range_size;
@@ -221,6 +220,7 @@ private:
 
 /* ------------------------------ Specialization: single range ------------------------------ */
 template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, std::ranges::input_range R>
+    requires std::ranges::contiguous_range<R> // range has to be contiguous (i.e. vector, array, etc.)
 class Data<SR, MemRes, R>
 {
 public:
@@ -246,7 +246,7 @@ private:
     // underlying type of the buffer
     typedef decltype(get_first_underlying_type<R>()) BufferType;
 
-    BufferType* get_buffer_ptr(R& range) { /*return std::addressof(*head.begin());*/ return range.data(); }
+    BufferType* get_buffer_ptr(R& range) { /*return std::addressof(*range.begin());*/ return range.data(); }
 
     auto get_range_size(R& range) const { return std::ranges::distance(range); }
 
@@ -291,7 +291,7 @@ public:
 private:
     // base case
     template<typename Pattern, typename U>
-    constexpr inline void fill_pattern(Pattern const& pattern, size_t offset, U& range)
+    constexpr void fill_pattern(Pattern const& pattern, size_t offset, U& range)
     {
         // loop through range
         for (auto& element : range)
@@ -299,7 +299,7 @@ private:
     }
     // specialization case
     template<typename Pattern, typename U, typename... Us>
-    constexpr inline void fill_pattern(Pattern const& pattern, size_t offset, U& range, Us&... tail)
+    constexpr void fill_pattern(Pattern const& pattern, size_t offset, U& range, Us&... tail)
     {
         // loop through range
         for (auto& element : range)
@@ -310,7 +310,7 @@ private:
 
     // base case
     template<typename Pattern, typename U>
-    constexpr inline void fill_buffer(Pattern const& pattern, size_t offset, U& range)
+    constexpr void fill_buffer(Pattern const& pattern, size_t offset, U& range)
     {
         // loop through range
         for (auto& element : range)
@@ -318,7 +318,7 @@ private:
     }
     // specialization case
     template<typename Pattern, typename U, typename... Us>
-    constexpr inline void fill_buffer(Pattern const& pattern, size_t offset, U& range, Us&... tail)
+    constexpr void fill_buffer(Pattern const& pattern, size_t offset, U& range, Us&... tail)
     {
         // loop through range
         for (auto& element : range)

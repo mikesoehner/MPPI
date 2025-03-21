@@ -1,12 +1,12 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../include)
 
 find_package(Catch2 3 REQUIRED)
-find_package(MPI REQUIRED)
 # These tests can use the Catch2-provided main
 add_executable(amodes_tests amodes_tests.cpp)
 target_link_libraries(amodes_tests 
     PRIVATE 
-        Catch2::Catch2WithMain)
+        Catch2::Catch2WithMain
+        mppi::mppi)
 target_compile_features(amodes_tests
         PRIVATE
             cxx_std_23)
@@ -16,7 +16,8 @@ add_executable(datapattern_tests datapattern_tests.cpp)
 target_link_libraries(datapattern_tests 
     PRIVATE 
         Catch2::Catch2WithMain
-        MPI::MPI_CXX)
+        MPI::MPI_CXX
+        mppi::mppi)
 target_compile_features(datapattern_tests
         PRIVATE
             cxx_std_23)
@@ -27,13 +28,14 @@ add_executable(custom-main-tests test_main.cpp)
 target_link_libraries(custom-main-tests 
         PRIVATE 
             Catch2::Catch2
-            MPI::MPI_CXX)
+            MPI::MPI_CXX
+            mppi::mppi)
 target_compile_features(custom-main-tests
         PRIVATE
             cxx_std_23)
 
 
-set(NUMPROCS "2")
+# set(NUMPROCS "2")
 # message(${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NUMPROCS})
 add_test(NAME custom-main-tests
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} "2" custom-main-tests )

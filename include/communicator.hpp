@@ -40,7 +40,14 @@ class TrackAllocator : public std::pmr::memory_resource {
 class MPIAllocator : public std::pmr::memory_resource {
     void* do_allocate(std::size_t bytes, std::size_t alignment) override {
         void* p;
-        MPI_Alloc_mem(static_cast<MPI_Aint>(bytes), MPI_INFO_NULL, &p);
+        MPI_Info info = MPI_INFO_NULL;
+        MPI_Info_create(&info);
+        // TODO: Is this size_t -> char conversion safe? Does it always fit?
+        std::array<char, 10> chars;
+        std::to_chars(chars.data(), chars.data() + chars.size(), alignment);
+        MPI_Info_set(info, "mpi_minimum_memory_alignment", chars.data());
+        MPI_Alloc_mem(static_cast<MPI_Aint>(bytes), info, &p);
+
         return p;
     }
  
@@ -68,32 +75,31 @@ public:
     auto get_size() const { return _size; }
 
     template<typename... Ts>
-    void send(int destination, Tag tag, Ts... ranges) 
+        requires are_fundamentals<Ts...>  || are_only_ranges<Ts...>
+    void send(int destination, Tag tag, Ts&... ranges)
     {
         Data data(Send{}, _pool, ranges...);
         MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm); 
     }
 
+    template<are_only_views... Vs>
+    void send(int destination, Tag tag, Vs... views) 
+    {
+        Data data(Send{}, _pool, views...);
+        MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm); 
+    }
+
     template<typename... Ts, are_input_ranges... Rs>
-    void send(int destination, Tag tag, DataPattern<Ts...> const& data_pattern, Rs... ranges)
+    void send(int destination, Tag tag, DataPattern<Ts...> const& data_pattern, Rs&... ranges)
     {
         Data data(Send{}, _pool, data_pattern, ranges...);
         MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm);
     }
 
-    // TODO: It is bad to have these 3 separate functions that basically do the same
-    template<are_fundamentals... Fs>
-    auto recv(int source, Tag tag, Fs&... fundamentals)
-    {
-        Data data(Recv{}, _pool, fundamentals...);
-
-        MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source, tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
-
-        data.retrieve_data(fundamentals...);
-    }
-
-    template<are_only_ranges... Rs>
-    auto recv(int source, Tag tag, Rs&... ranges)
+    // TODO: It is bad to have these 2 separate functions that basically do the same
+    template<typename... Ts>
+        requires are_fundamentals<Ts...> || are_only_ranges<Ts...>
+    auto recv(int source, Tag tag, Ts&... ranges)
     {
         Data data(Recv{}, _pool, ranges...);
 

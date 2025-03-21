@@ -1,4 +1,5 @@
 #include <iostream>
+#include <type_traits>
 #include "communicator.hpp"
 
 
@@ -18,29 +19,28 @@ int main(int argc, char** argv)
     // print preamble
     if(comm.get_rank() == 0)
         std::cout << "# OSU Inpired MPI Latency Test\n";
-
-    std::vector<MPI_Datatype> mpi_types;
-    mpi_types.emplace_back(MPI_CHAR);
-    mpi_types.emplace_back(MPI_INT);
-    mpi_types.emplace_back(MPI_DOUBLE);
-
-    MPI_Status reqstat{};
-
-    // loop through different datatypes that should be benchmarked
-    for (auto mpi_type : mpi_types)
+    
+    auto benchmark = [&comm]<typename T>(T t)
     {
-        int type_size {};
-        MPI_Type_size(mpi_type, &type_size);
-        size_t min_message_size = type_size;
-        constexpr size_t max_message_size = 4'194'304 * 4;
-
-        char type_name[128];
-        int resultlen {};
-        MPI_Type_get_name(mpi_type, type_name, &resultlen);
+        auto type_size = sizeof(T);
         
+        size_t min_message_size = type_size;
+        size_t max_message_size = 4'194'304 * 4;
+
         if (comm.get_rank() == 0)
         {
-            fprintf(stdout, "# Datatype: %s.\n", type_name);
+            if constexpr (std::is_same_v<T, char>)
+                fprintf(stdout, "# Datatype: char.\n");
+            else if constexpr (std::is_same_v<T, int>)
+                fprintf(stdout, "# Datatype: int.\n");
+            else if constexpr (std::is_same_v<T, double>)
+                fprintf(stdout, "# Datatype: double.\n");
+            else
+            {
+                MPI_Abort(MPI_COMM_WORLD, 1);
+                return 1;
+            }
+
             fprintf(stdout, "%-*s", 10, "# Size");
             fprintf(stdout, "%*s", 20, "Avg Latency(us)\n");
         }
@@ -51,8 +51,8 @@ int main(int argc, char** argv)
             // get number of elements in message
             auto nb_elements = size / type_size;
             // init buffers
-            std::vector<char> send_buf(size);
-            std::vector<char> recv_buf(size);
+            std::vector<T> send_buf(nb_elements);
+            std::vector<T> recv_buf(nb_elements);
             //
             MPI_Barrier(MPI_COMM_WORLD);
 
@@ -65,16 +65,16 @@ int main(int argc, char** argv)
                 {
                     double time_start = MPI_Wtime();
 
-                    MPI_Send(send_buf.data(), nb_elements, mpi_type, 1, 1, MPI_COMM_WORLD);
-                    MPI_Recv(recv_buf.data(), nb_elements, mpi_type, 1, 1, MPI_COMM_WORLD, &reqstat);
+                    comm.send(1, Tag(1), send_buf);
+                    comm.recv(1, Tag(1), recv_buf);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
                 }
                 else if (comm.get_rank() == 1)
                 {
-                    MPI_Recv(recv_buf.data(), nb_elements, mpi_type, 0, 1, MPI_COMM_WORLD, &reqstat);
-                    MPI_Send(send_buf.data(), nb_elements, mpi_type, 0, 1, MPI_COMM_WORLD);
+                    comm.recv(0, Tag(1), recv_buf);
+                    comm.send(0, Tag(1), send_buf);
                 }
             }
 
@@ -87,7 +87,15 @@ int main(int argc, char** argv)
                 fflush(stdout);
             }
         }
-    }
+    };
+
+    auto wrapper = [benchmark]<typename... Ts>(Ts... types)
+    {
+        (benchmark(types), ...);
+    };
+
+    wrapper(char{}, int{}, double{});
+
 
     MPI_Finalize();
     return 0;

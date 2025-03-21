@@ -8,6 +8,26 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
 project(mppi
     LANGUAGES CXX)
 
-add_subdirectory(src)
-add_subdirectory(tests)
+find_package(MPI REQUIRED)
+
+add_library(mppi INTERFACE)
+target_include_directories(mppi
+    INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+add_library(mppi::mppi ALIAS mppi)
+target_link_libraries(mppi INTERFACE MPI::MPI_CXX)
+target_compile_features(mppi INTERFACE cxx_std_23)
+
+# set Release as the default build type if it is not yet set.
+if(NOT CMAKE_BUILD_TYPE)
+set(CMAKE_BUILD_TYPE "Release" CACHE STRING
+        "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
+endif(NOT CMAKE_BUILD_TYPE)
+    
+# only combile tests in debug mode
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_subdirectory(tests)
+endif()
+
 add_subdirectory(benchmarks)

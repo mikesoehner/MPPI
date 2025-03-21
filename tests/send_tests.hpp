@@ -2,11 +2,13 @@
 #include <communicator.hpp>
 #include <numeric>
 #include <iostream>
+#include <list>
 
 TEST_CASE( "Send and Recv functionality", "[send_recv]" )
 {
     // setup to be communicated vector
     std::vector<int> vec(10, 0);
+    std::list<int> list(10, 0);
 
     Communicator comm;
 
@@ -84,7 +86,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         }
     }
 
-    SECTION("Sending multiple fractions of an stl container")
+    SECTION("Sending multiple fractions of an contiguous stl container")
     {
         if (comm.get_rank() == 0)
         {
@@ -98,6 +100,81 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             comm.recv(0, Tag(0), vec | std::ranges::views::take(3), vec | std::ranges::views::drop(7));
 
             REQUIRE(vec == std::vector<int> {0,1,2,0,0,0,0,7,8,9});
+        }
+    }
+
+    SECTION("Sending an entire non-contiguous stl container")
+    {
+        if (comm.get_rank() == 0)
+        {
+            std::iota(list.begin(), list.end(), 0);
+            comm.send(1, Tag(0), list);
+        }
+        else
+        {
+            comm.recv(0, Tag(0), list);
+            
+            auto iter = list.begin();
+            REQUIRE(*iter++ == 0);
+            REQUIRE(*iter++ == 1);
+            REQUIRE(*iter++ == 2);
+            REQUIRE(*iter++ == 3);
+            REQUIRE(*iter++ == 4);
+            REQUIRE(*iter++ == 5);
+            REQUIRE(*iter++ == 6);
+            REQUIRE(*iter++ == 7);
+            REQUIRE(*iter++ == 8);
+            REQUIRE(*iter++ == 9);
+        }
+    }
+
+    SECTION("Sending a fraction of a non-contiguous stl container")
+    {
+        if (comm.get_rank() == 0)
+        {
+            std::iota(list.begin(), list.end(), 0);
+            comm.send(1, Tag(0), list | std::ranges::views::take(5));
+        }
+        else
+        {
+            comm.recv(0, Tag(0), list | std::ranges::views::take(5));
+
+            auto iter = list.begin();
+            REQUIRE(*iter++ == 0);
+            REQUIRE(*iter++ == 1);
+            REQUIRE(*iter++ == 2);
+            REQUIRE(*iter++ == 3);
+            REQUIRE(*iter++ == 4);
+            REQUIRE(*iter++ == 0);
+            REQUIRE(*iter++ == 0);
+            REQUIRE(*iter++ == 0);
+            REQUIRE(*iter++ == 0);
+            REQUIRE(*iter++ == 0);
+        }
+    }
+
+    SECTION("Sending multiple fractions of a non-contiguous contiguous stl container")
+    {
+        if (comm.get_rank() == 0)
+        {
+            std::iota(list.begin(), list.end(), 0);
+            comm.send(1, Tag(0), list | std::ranges::views::take(3), list | std::ranges::views::drop(7));
+        }
+        else
+        {
+            comm.recv(0, Tag(0), list | std::ranges::views::take(3), list | std::ranges::views::drop(7));
+
+            auto iter = list.begin();
+            REQUIRE(*iter++ == 0);
+            REQUIRE(*iter++ == 1);
+            REQUIRE(*iter++ == 2);
+            REQUIRE(*iter++ == 0);
+            REQUIRE(*iter++ == 0);
+            REQUIRE(*iter++ == 0);
+            REQUIRE(*iter++ == 0);
+            REQUIRE(*iter++ == 7);
+            REQUIRE(*iter++ == 8);
+            REQUIRE(*iter++ == 9);
         }
     }
 
@@ -158,8 +235,5 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             REQUIRE(std::abs(tests_vec[2].get_d()[0] - 6.0f) < 0.00001f);
             REQUIRE(std::abs(tests_vec[3].get_d()[0] - 7.0f) < 0.00001f);
         }
-
-
-
     }
 }
