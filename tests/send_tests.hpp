@@ -200,8 +200,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             std::array<float, 3> _d {};
         };
 
-        TestClass testpattern;
-        DataPattern data_pattern(&testpattern, testpattern.get_a(), testpattern.get_d());
+        constexpr DataPattern data_pattern(TestClass{}, "_a", "_d");
 
         std::vector<TestClass> tests_vec;
         
@@ -259,8 +258,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             int _d;
         };
 
-        TestClass testpattern;
-        DataPattern data_pattern(&testpattern, testpattern.get_a(), testpattern.get_b(), testpattern.get_d());
+        constexpr DataPattern data_pattern(TestClass{}, "_a", "_b", "_d");
 
         std::vector<TestClass> tests_vec;
         

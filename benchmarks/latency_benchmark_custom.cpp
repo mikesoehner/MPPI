@@ -46,8 +46,7 @@ int main(int argc, char** argv)
 
     MPI_Status reqstat;
 
-    TestClass test;
-    DataPattern data_pattern(&test, test.get_a(), test.get_b(), test.get_d(), test.get_f());
+    DataPattern data_pattern(TestClass{}, "_a", "_b", "_d", "_f");
 
     std::tuple data_patterns {data_pattern};
     std::vector<MPI_Datatype> mpi_types;

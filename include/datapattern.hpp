@@ -1,6 +1,7 @@
 #ifndef MPPI_DATAPATTERN_HPP
 #define MPPI_DATAPATTERN_HPP
 
+#include <experimental/meta>
 #include <ranges>
 #include <concepts>
 #include <type_traits>
@@ -8,140 +9,202 @@
 #include <cstring>
 
 
-template<size_t offset, typename T>
-consteval auto calc_size(T)
+template<int Index, typename OriginalType, typename Layout>
+consteval void get_sizes_impl(Layout& sizes, std::string_view identifier)
 {
-    constexpr auto mod = offset % alignof(T);
-    constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
-
-    return offset + sizeof(T) + adjust_for_alignment;
-}
-template<size_t offset, typename T, typename... Ts>
-consteval auto calc_size(T, Ts...)
-{
-    constexpr auto mod = offset % alignof(T);
-    constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
-
-    return calc_size<offset + sizeof(T) + adjust_for_alignment>(Ts{}...);
+    for (std::meta::info member : nonstatic_data_members_of(^^OriginalType))
+        if (identifier_of(member) == identifier)
+            sizes[Index] = size_of(member);
 }
 
-template<size_t size, typename T, typename... Ts>
-consteval auto adjust_for_first_element(T const&, Ts const&...)
+template <typename OriginalType, typename Layout, int... IDs, typename... Identifiers>
+consteval auto get_sizes(Layout& sizes, std::integer_sequence<int, IDs...> id_seq, Identifiers... identifiers) 
 {
-    constexpr auto mod = size % alignof(T);
-    constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
-    
-    return size + adjust_for_alignment;
+    (get_sizes_impl<IDs, OriginalType>(sizes, identifiers), ...);
 }
 
-template<typename Origin, typename... Members>
+template <typename OriginalType, typename... Identifiers>
+consteval auto get_sizes_wrapper(Identifiers... identifiers) 
+{
+    constexpr auto N = sizeof...(Identifiers);
+    constexpr auto ids = std::make_integer_sequence<int, N>{};
+    std::array<size_t, N> arr;
+
+    get_sizes<OriginalType>(arr, ids, identifiers...);
+
+    return arr;
+}
+
+template<int Index, typename OriginalType, typename Layout>
+consteval void get_alignment_impl(Layout& alignment, std::string_view identifier)
+{
+    for (std::meta::info member : nonstatic_data_members_of(^^OriginalType))
+        if (identifier_of(member) == identifier)
+            alignment[Index] = alignment_of(member);
+}
+
+template <typename OriginalType, typename Layout, int... IDs, typename... Identifiers>
+consteval auto get_alignment(Layout& alignment, std::integer_sequence<int, IDs...> id_seq, Identifiers... identifiers) 
+{
+    (get_alignment_impl<IDs, OriginalType>(alignment, identifiers), ...);
+}
+
+template <typename OriginalType, typename... Identifiers>
+consteval auto get_alignment_wrapper(Identifiers... identifiers) 
+{
+    constexpr auto N = sizeof...(Identifiers);
+    constexpr auto ids = std::make_integer_sequence<int, N>{};
+    std::array<size_t, N> arr;
+
+    get_alignment<OriginalType>(arr, ids, identifiers...);
+
+    return arr;
+}
+
+template<int Index, typename OriginalType, typename Layout>
+consteval void calc_offset_type_impl(Layout& offset_type, std::string_view identifier)
+{
+    for (std::meta::info member : nonstatic_data_members_of(^^OriginalType))
+        if (identifier_of(member) == identifier)
+            offset_type[Index] = offset_of(member).bytes;
+}
+
+template <typename OriginalType, typename Layout, int... Indices, typename... Identifiers>
+consteval auto calc_offset_type_wrapper(Layout& offset_type, std::integer_sequence<int, Indices...> id_seq, Identifiers... identifiers) 
+{
+    (calc_offset_type_impl<Indices, OriginalType>(offset_type, identifiers), ...);
+}
+
+template <typename OriginalType, typename... Identifiers>
+consteval auto calc_offset_type(Identifiers... identifiers) 
+{
+    constexpr auto N = sizeof...(Identifiers);
+    constexpr auto Indices = std::make_integer_sequence<int, N>{};
+    std::array<size_t, N> offset_type;
+
+    calc_offset_type_wrapper<OriginalType>(offset_type, Indices, identifiers...);
+
+    return offset_type;
+}
+
+template<int Index, typename OriginalType, typename Layout>
+consteval void calc_offset_buffer_impl(Layout& offset_buffer, Layout& sizes, std::string_view identifier)
+{
+    if constexpr (Index == 0)
+    {
+        offset_buffer[0] = 0;
+    }
+    else
+    {
+        size_t alignment = 0;
+
+        for (std::meta::info member : nonstatic_data_members_of(^^OriginalType))
+            if (identifier_of(member) == identifier)
+                alignment = alignment_of(member);
+
+        auto prev_type_size = sizes[Index-1];
+        auto mod = (offset_buffer[Index-1] + prev_type_size) % alignment;
+        auto adjust_for_alignment = mod != 0 ? alignment - mod : 0ul;
+
+        offset_buffer[Index] = offset_buffer[Index-1] + prev_type_size + adjust_for_alignment;
+    }
+}
+
+template <typename OriginalType, typename Layout, int... Indices, typename... Identifiers>
+consteval auto calc_offset_buffer_wrapper(Layout& offset_buffer, Layout& sizes, std::integer_sequence<int, Indices...> id_seq, Identifiers... identifiers) 
+{
+    (get_sizes_impl<Indices, OriginalType>(sizes, identifiers), ...);
+    (calc_offset_buffer_impl<Indices, OriginalType>(offset_buffer, sizes, identifiers), ...);
+}
+
+template <typename OriginalType, typename... Identifiers>
+consteval auto calc_offset_buffer(Identifiers... identifiers) 
+{
+    constexpr auto N = sizeof...(Identifiers);
+    constexpr auto Indices = std::make_integer_sequence<int, N>{};
+    std::array<size_t, N> offset_buffer;
+    std::array<size_t, N> sizes;
+
+    calc_offset_buffer_wrapper<OriginalType>(offset_buffer, sizes, Indices, identifiers...);
+
+    return offset_buffer;
+}
+
+
+template<typename OriginalType, typename... Identifiers>
+consteval auto calc_size(Identifiers... identifiers)
+{
+    constexpr auto N = sizeof...(Identifiers);
+    std::array<size_t, N> sizes = get_sizes_wrapper<OriginalType>(identifiers...);
+    std::array<size_t, N> alignments = get_alignment_wrapper<OriginalType>(identifiers...);
+
+    size_t offset = 0;
+
+    for (size_t i = 0; i < N; i++)
+    {
+        auto mod = offset % alignments[i];
+        auto adjust_for_alignment = mod != 0 ? alignments[i] - mod :  0ul;
+
+        offset += sizes[i] + adjust_for_alignment;
+    }
+
+    // adjust for alignment of first element
+    auto mod = offset % alignments[0];
+    auto adjust_for_alignment = mod != 0 ? alignments[0] - mod :  0ul;
+
+    return offset + adjust_for_alignment;
+}
+
+template<typename OriginalType, typename... Members>
 class DataPattern
 {
 public:
-    DataPattern(Origin* origin, Members&... members)
+    consteval DataPattern(OriginalType origin, Members... members)
+        : _size(calc_size<OriginalType>(members...)), _sizes(get_sizes_wrapper<OriginalType>(members...)),
+        _offset_type(calc_offset_type<OriginalType>(members...)),
+        _offset_buffer(calc_offset_buffer<OriginalType>(members...))
+    {}
+
+    size_t store_from_type(std::byte* dest, OriginalType* base, size_t offset) const
     {
-        // determine size of one packed element
-        constexpr size_t offset = 0;
-        constexpr auto tmp_size = calc_size<offset>(Members{}...);
-        // adjust for alignment of first element again
-        _size = adjust_for_first_element<tmp_size>(Members{}...);
-        // fill buffer of offsets
-        fill_displs_buffer<0>(origin, members...);
+        constexpr auto N = sizeof...(Members);
+        constexpr auto Indices = std::make_index_sequence<N>{};
+
+        return store_to_dest(dest, reinterpret_cast<std::byte*>(base), offset, Indices);
     }
 
-    size_t store_from_type(std::byte* dest, Origin* base, size_t offset) const
+    size_t load_to_type(OriginalType* base, std::byte* src, size_t offset) const
     {
-        constexpr size_t alignment = 0;
-        return store_to_dest<alignment, 0>(dest, reinterpret_cast<std::byte*>(base), offset, Members{}...);
+        constexpr auto N = sizeof...(Members);
+        constexpr auto Indices = std::make_index_sequence<N>{};
+
+        return load_from_src(reinterpret_cast<std::byte*>(base), src, offset, Indices);
     }
 
-    size_t load_to_type(Origin* base, std::byte* src, size_t offset) const
-    {
-        constexpr size_t alignment = 0;
-        return load_from_src<alignment, 0>(reinterpret_cast<std::byte*>(base), src, offset, Members{}...);
-    }
-
-    auto get_size() const { return _size; }
+    constexpr auto get_size() const { return _size; }
 
 private:
 
-    template<int I, typename T>
-    constexpr void fill_displs_buffer(Origin* origin, T& head)
+    template<size_t... Indices>
+    constexpr size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, std::index_sequence<Indices...> indices) const
     {
-        // displacement between start of struct and start of the value we want to copy
-        _displacements[I] = std::distance(reinterpret_cast<std::byte*>(origin), reinterpret_cast<std::byte*>(&head));
-    }
-    template<int I, typename T, typename... Ts>
-    constexpr void fill_displs_buffer(Origin* origin, T& head, Ts&... tail)
-    {
-        // displacement between start of struct and start of the value we want to copy
-        _displacements[I] = std::distance(reinterpret_cast<std::byte*>(origin), reinterpret_cast<std::byte*>(&head));
+        ((std::memcpy(dest + offset + _offset_buffer[Indices], origin + _offset_type[Indices], _sizes[Indices])), ...);
 
-        fill_displs_buffer<I+1>(origin, tail...);
+        return offset + _size;
     }
 
-
-    template<size_t alignment, int I, typename T>
-    constexpr size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, T const& head) const
+    template<size_t... Indices>
+    constexpr size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, std::index_sequence<Indices...> indices) const
     {
-        // check if offset matches alignment of head
-        constexpr auto mod = alignment % alignof(T);
-        constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
+        ((std::memcpy(origin + _offset_type[Indices], src + offset + _offset_buffer[Indices], _sizes[Indices])), ...);
 
-        offset += adjust_for_alignment;
-
-        std::memcpy(dest + offset, origin + _displacements[I], sizeof(T));
-
-        return offset + sizeof(T);
-    }
-    // TODO: Fix this function (replacing alignment with offset works, why? Maybe replace mod calculations with an array with stored precomputed results).
-    template<size_t alignment, int I, typename T, typename... Ts>
-    constexpr size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, T const& head, Ts const&... tail) const
-    {
-        // check if offset matches alignment of head
-        constexpr auto mod = alignment % alignof(T);
-        constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
-        
-        offset += adjust_for_alignment;
-
-        std::memcpy(dest + offset, origin + _displacements[I], sizeof(T));
-
-        offset += sizeof(T);
-
-        return store_to_dest<alignment + adjust_for_alignment + sizeof(T), I+1>(dest, origin, offset, tail...);
+        return offset + _size;
     }
 
-    template<size_t alignment, int I, typename T>
-    constexpr size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, T const& head) const
-    {
-        // check if offset matches alignment of head
-        constexpr auto mod = alignment % alignof(T);
-        constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
-
-        offset += adjust_for_alignment;
-
-        std::memcpy(origin + _displacements[I], src + offset, sizeof(T));
-
-        return offset + sizeof(T);
-    }
-    template<size_t alignment, int I, typename T, typename... Ts>
-    constexpr size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, T const& head, Ts const&...  tail) const
-    {
-        // check if offset matches alignment of head
-        constexpr auto mod = alignment % alignof(T);
-        constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
-
-        offset += adjust_for_alignment;
-
-        std::memcpy(origin + _displacements[I], src + offset, sizeof(T));
-
-        offset += sizeof(T);
-
-        return load_from_src<alignment + adjust_for_alignment + sizeof(T), I+1>(origin, src, offset, tail...);
-    }
-
-    std::array<std::ptrdiff_t, sizeof...(Members)> _displacements;
-    size_t _size {0};
+    const size_t _size {0};
+    const std::array<size_t, sizeof...(Members)> _sizes;
+    const std::array<size_t, sizeof...(Members)> _offset_type;
+    const std::array<size_t, sizeof...(Members)> _offset_buffer;
 };
 
 #endif
