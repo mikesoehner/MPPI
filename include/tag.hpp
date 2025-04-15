@@ -1,5 +1,5 @@
-#ifndef MPPI_TAG_H
-#define MPPI_TAG_H
+#ifndef MPPI_TAG_HPP
+#define MPPI_TAG_HPP
 
 class Tag
 {
