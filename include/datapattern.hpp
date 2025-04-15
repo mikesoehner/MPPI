@@ -58,46 +58,50 @@ public:
         _offset_buffer(offset_buffer)
     {}
 
-    size_t store_from_type(std::byte* dest, OriginalType* base, size_t offset) const
+    size_t pack(std::byte* dest, OriginalType* base, size_t offset) const
     {
         constexpr auto N = sizeof...(Identifiers);
         constexpr auto Indices = std::make_index_sequence<N>{};
 
         // Target Members are compile-time resolvable
         if constexpr (has_only_trivially_copyable_types<OriginalType, Identifiers...>)
-            return store_to_dest(dest, reinterpret_cast<std::byte*>(base), offset, Indices);
+            return copy<true>(dest, reinterpret_cast<std::byte*>(base), offset, Indices);
         // Target Members are not all compile-time resolvable
         else
-            return store_to_dest_dynamic(dest, reinterpret_cast<std::byte*>(base), offset, Indices);
+            return copy_dynamic<true>(dest, reinterpret_cast<std::byte*>(base), offset, Indices);
     }
 
-    size_t load_to_type(OriginalType* base, std::byte* src, size_t offset) const
+    size_t unpack(OriginalType* base, std::byte* src, size_t offset) const
     {
         constexpr auto N = sizeof...(Identifiers);
         constexpr auto Indices = std::make_index_sequence<N>{};
 
         // Target Members are compile-time resolvable
         if constexpr (has_only_trivially_copyable_types<OriginalType, Identifiers...>)
-            return load_from_src(reinterpret_cast<std::byte*>(base), src, offset, Indices);
+            return copy<false>(reinterpret_cast<std::byte*>(base), src, offset, Indices);
         // Target Members are not all compile-time resolvable
         else
-            return load_from_src_dynamic(reinterpret_cast<std::byte*>(base), src, offset, Indices);
+            return copy_dynamic<false>(reinterpret_cast<std::byte*>(base), src, offset, Indices);
     }
 
     constexpr auto get_size() const { return _size; }
 
 private:
 
-    template<size_t... Indices>
-    constexpr size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, std::index_sequence<Indices...> indices) const
+    template<bool Pack, size_t... Indices>
+    constexpr size_t copy(std::byte* dest, std::byte* src, size_t offset, std::index_sequence<Indices...>) const
     {
-        ((std::memcpy(dest + offset + _offset_buffer[Indices], origin + _offset_type[Indices], _sizes[Indices])), ...);
+        if constexpr (Pack)
+            ((std::memcpy(dest + offset + _offset_buffer[Indices], src + _offset_type[Indices], _sizes[Indices])), ...);
+        else
+            ((std::memcpy(dest + _offset_type[Indices], src + offset + _offset_buffer[Indices], _sizes[Indices])), ...);
 
         return offset + _size;
     }
 
-    template<size_t Index>
-    auto copy(std::byte* dest, std::byte* origin, size_t& offset) const
+
+    template<bool Pack, size_t Index>
+    auto copy_dynamic_impl(std::byte* dest, std::byte* src, size_t& offset) const
     {
         constexpr auto types = get_types<OriginalType, Identifiers...>();
 
@@ -106,7 +110,8 @@ private:
         // this requires runtime information
         if constexpr (is_allocator_aware_container<T>)
         {
-            auto container_ptr = reinterpret_cast<T*>(origin + _offset_type[Index]);
+            auto container_ptr = Pack ? reinterpret_cast<T*>(src + _offset_type[Index]) :
+                                        reinterpret_cast<T*>(dest + _offset_type[Index]);
             
             auto data = container_ptr->data();
             auto size = container_ptr->size();
@@ -117,7 +122,10 @@ private:
             auto adjust_for_alignment = mod != 0 ? alignof(Value_Type) - mod : 0ul;
             offset += adjust_for_alignment;
 
-            std::memcpy(dest + offset, data, size * sizeof(Value_Type));
+            if constexpr (Pack)
+               std::memcpy(dest + offset, data, size * sizeof(Value_Type));
+            else
+                std::memcpy(data, src + offset, size * sizeof(Value_Type));
 
             offset += size * sizeof(Value_Type);
         }
@@ -128,7 +136,10 @@ private:
             auto adjust_for_alignment = mod != 0 ? alignof(T) - mod : 0ul;
             offset += adjust_for_alignment;
 
-            std::memcpy(dest + offset, origin + _offset_type[Index], _sizes[Index]);
+            if constexpr (Pack)
+                std::memcpy(dest + offset, src + _offset_type[Index], _sizes[Index]);
+            else
+                std::memcpy(dest + _offset_type[Index], src + offset, _sizes[Index]);
 
             offset += _sizes[Index];
         }
@@ -136,68 +147,13 @@ private:
         return offset;
     }
 
-    template<size_t... Indices>
-    size_t store_to_dest_dynamic(std::byte* dest, std::byte* origin, size_t offset, std::index_sequence<Indices...>) const
+
+    template<bool Pack, size_t... Indices>
+    constexpr size_t copy_dynamic(std::byte* dest, std::byte* src, size_t offset, std::index_sequence<Indices...>) const
     {
         // the comma operator return the last instance of copy, 
         // since in copy offset is passed by reference it is the same offset in functions called here
-        return (copy<Indices>(dest, origin, offset), ...);
-    }
-
-
-    template<size_t... Indices>
-    constexpr size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, std::index_sequence<Indices...> indices) const
-    {
-        ((std::memcpy(origin + _offset_type[Indices], src + offset + _offset_buffer[Indices], _sizes[Indices])), ...);
-
-        return offset + _size;
-    }
-
-    template<size_t Index>
-    auto copy_rev(std::byte* origin, std::byte* src, size_t& offset) const
-    {
-        constexpr auto types = get_types<OriginalType, Identifiers...>();
-
-        using T = typename [: types[Index] :];
-        
-        if constexpr (is_allocator_aware_container<T>)
-        {
-            // this is a container
-            auto container_ptr = reinterpret_cast<T*>(origin + _offset_type[Index]);
-            
-            auto data = container_ptr->data();
-            auto size = container_ptr->size();
-
-            using Value_Type = typename T::value_type;
-
-            auto mod = offset % alignof(Value_Type);
-            auto adjust_for_alignment = mod != 0 ? alignof(Value_Type) - mod : 0ul;
-            offset += adjust_for_alignment;
-
-            std::memcpy(data, src + offset, size * sizeof(Value_Type));
-
-            offset += size * sizeof(Value_Type);
-        }
-        else
-        {            
-            auto mod = offset % alignof(T);
-            auto adjust_for_alignment = mod != 0 ? alignof(T) - mod : 0ul;
-            offset += adjust_for_alignment;
-
-            std::memcpy(origin + _offset_type[Index], src + offset, _sizes[Index]);
-
-            offset += _sizes[Index];
-        }
-
-        return offset;
-    }
-
-    template<size_t... Indices>
-    constexpr size_t load_from_src_dynamic(std::byte* origin, std::byte* src, size_t offset, std::index_sequence<Indices...> indices) const
-    {
-        // the comma operator return the last instance of copy, 
-        // since in copy offset is passed by reference it is the same offset in functions called here
-        return (copy_rev<Indices>(origin, src, offset), ...);
+        return (copy_dynamic_impl<Pack, Indices>(dest, src, offset), ...);
     }
 
     // The size has a different meaning depending on the types in a datapattern

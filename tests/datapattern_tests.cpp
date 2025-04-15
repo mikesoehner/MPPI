@@ -41,7 +41,7 @@ TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
         Destination dest;
 
         size_t offset = 0;
-        data_pattern.store_from_type(reinterpret_cast<std::byte*>(&dest), &test, offset);
+        data_pattern.pack(reinterpret_cast<std::byte*>(&dest), &test, offset);
 
         REQUIRE(1 == dest.a);
         REQUIRE(std::abs(3.0 - dest.c) < 0.0001);

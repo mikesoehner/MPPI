@@ -303,7 +303,7 @@ private:
     {
         // loop through range
         for (auto& element : range)
-            offset = pattern.store_from_type(_buffer.data(), &element, offset);
+            offset = pattern.pack(_buffer.data(), &element, offset);
     }
     // specialization case
     template<typename Pattern, typename U, typename... Us>
@@ -311,7 +311,7 @@ private:
     {
         // loop through range
         for (auto& element : range)
-            offset = pattern.store_from_type(_buffer.data(), &element, offset);
+            offset = pattern.pack(_buffer.data(), &element, offset);
 
         fill_pattern(pattern, offset, tail...);
     }
@@ -322,7 +322,7 @@ private:
     {
         // loop through range
         for (auto& element : range)
-            offset = pattern.load_to_type(&element, _buffer.data(), offset);
+            offset = pattern.unpack(&element, _buffer.data(), offset);
     }
     // specialization case
     template<typename Pattern, typename U, typename... Us>
@@ -330,7 +330,7 @@ private:
     {
         // loop through range
         for (auto& element : range)
-            offset = pattern.load_to_type(&element, _buffer.data(), offset);
+            offset = pattern.unpack(&element, _buffer.data(), offset);
 
         fill_buffer(pattern, offset, tail...);
     }
@@ -420,7 +420,7 @@ private:
     {
         // loop through range
         for (auto& element : range)
-            offset = pattern.store_from_type(_buffer.data(), &element, offset);
+            offset = pattern.pack(_buffer.data(), &element, offset);
     }
     // specialization case
     template<typename Pattern, typename U, typename... Us>
@@ -428,7 +428,7 @@ private:
     {
         // loop through range
         for (auto& element : range)
-            offset = pattern.store_from_type(_buffer.data(), &element, offset);
+            offset = pattern.pack(_buffer.data(), &element, offset);
 
         fill_pattern(pattern, offset, tail...);
     }
@@ -439,7 +439,7 @@ private:
     {
         // loop through range
         for (auto& element : range)
-            offset = pattern.load_to_type(&element, _buffer.data(), offset);
+            offset = pattern.unpack(&element, _buffer.data(), offset);
     }
     // specialization case
     template<typename Pattern, typename U, typename... Us>
@@ -447,7 +447,7 @@ private:
     {
         // loop through range
         for (auto& element : range)
-            offset = pattern.load_to_type(&element, _buffer.data(), offset);
+            offset = pattern.unpack(&element, _buffer.data(), offset);
 
         fill_buffer(pattern, offset, tail...);
     }
