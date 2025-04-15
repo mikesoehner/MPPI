@@ -7,17 +7,11 @@
 
 
 
-// base case
-template<typename R>
-constexpr size_t ranges_size(R head)
+// sum length of ranges
+template<typename... Rs>
+constexpr size_t ranges_size(Rs&... ranges)
 {
-    return std::ranges::distance(head);
-}
-// specialization case
-template<typename R, typename... Rs>
-constexpr size_t ranges_size(R head, Rs... tail)
-{
-    return std::ranges::distance(head) + ranges_size(tail...);
+    return (std::ranges::distance(ranges) + ...);
 }
 
 // getting underlying type out of ranges, so we can create a vector

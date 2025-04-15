@@ -159,7 +159,7 @@ public:
         : _buffer{ &mem_res }
     {
         if constexpr ( std::is_same_v<SR, Send>)
-            fill_buffer(_buffer, ranges...);
+            (fill_buffer(_buffer, ranges), ...);
         else
             _buffer.resize(ranges_size(ranges...));
     }
@@ -182,14 +182,6 @@ private:
     constexpr void fill_buffer(C& container, T& head)
     {
         std::ranges::copy(head, std::back_inserter(container));
-    }
-    // specialization case
-    template<typename C, typename T, typename... Ts>
-    constexpr void fill_buffer(C& container, T& head, Ts&... tail)
-    {
-        std::ranges::copy(head, std::back_inserter(container));
-
-        fill_buffer(_buffer, tail...);
     }
 
     // base case
