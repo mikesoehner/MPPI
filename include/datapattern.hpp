@@ -8,177 +8,80 @@
 #include <cstddef>
 #include <cstring>
 
-
-template<int Index, typename OriginalType, typename Layout>
-consteval void get_sizes_impl(Layout& sizes, std::string_view identifier)
-{
-    for (std::meta::info member : nonstatic_data_members_of(^^OriginalType))
-        if (identifier_of(member) == identifier)
-            sizes[Index] = size_of(member);
-}
-
-template <typename OriginalType, typename Layout, int... IDs, typename... Identifiers>
-consteval auto get_sizes(Layout& sizes, std::integer_sequence<int, IDs...> id_seq, Identifiers... identifiers) 
-{
-    (get_sizes_impl<IDs, OriginalType>(sizes, identifiers), ...);
-}
-
-template <typename OriginalType, typename... Identifiers>
-consteval auto get_sizes_wrapper(Identifiers... identifiers) 
-{
-    constexpr auto N = sizeof...(Identifiers);
-    constexpr auto ids = std::make_integer_sequence<int, N>{};
-    std::array<size_t, N> arr;
-
-    get_sizes<OriginalType>(arr, ids, identifiers...);
-
-    return arr;
-}
-
-template<int Index, typename OriginalType, typename Layout>
-consteval void get_alignment_impl(Layout& alignment, std::string_view identifier)
-{
-    for (std::meta::info member : nonstatic_data_members_of(^^OriginalType))
-        if (identifier_of(member) == identifier)
-            alignment[Index] = alignment_of(member);
-}
-
-template <typename OriginalType, typename Layout, int... IDs, typename... Identifiers>
-consteval auto get_alignment(Layout& alignment, std::integer_sequence<int, IDs...> id_seq, Identifiers... identifiers) 
-{
-    (get_alignment_impl<IDs, OriginalType>(alignment, identifiers), ...);
-}
-
-template <typename OriginalType, typename... Identifiers>
-consteval auto get_alignment_wrapper(Identifiers... identifiers) 
-{
-    constexpr auto N = sizeof...(Identifiers);
-    constexpr auto ids = std::make_integer_sequence<int, N>{};
-    std::array<size_t, N> arr;
-
-    get_alignment<OriginalType>(arr, ids, identifiers...);
-
-    return arr;
-}
-
-template<int Index, typename OriginalType, typename Layout>
-consteval void calc_offset_type_impl(Layout& offset_type, std::string_view identifier)
-{
-    for (std::meta::info member : nonstatic_data_members_of(^^OriginalType))
-        if (identifier_of(member) == identifier)
-            offset_type[Index] = offset_of(member).bytes;
-}
-
-template <typename OriginalType, typename Layout, int... Indices, typename... Identifiers>
-consteval auto calc_offset_type_wrapper(Layout& offset_type, std::integer_sequence<int, Indices...> id_seq, Identifiers... identifiers) 
-{
-    (calc_offset_type_impl<Indices, OriginalType>(offset_type, identifiers), ...);
-}
-
-template <typename OriginalType, typename... Identifiers>
-consteval auto calc_offset_type(Identifiers... identifiers) 
-{
-    constexpr auto N = sizeof...(Identifiers);
-    constexpr auto Indices = std::make_integer_sequence<int, N>{};
-    std::array<size_t, N> offset_type;
-
-    calc_offset_type_wrapper<OriginalType>(offset_type, Indices, identifiers...);
-
-    return offset_type;
-}
-
-template<int Index, typename OriginalType, typename Layout>
-consteval void calc_offset_buffer_impl(Layout& offset_buffer, Layout& sizes, std::string_view identifier)
-{
-    if constexpr (Index == 0)
-    {
-        offset_buffer[0] = 0;
-    }
-    else
-    {
-        size_t alignment = 0;
-
-        for (std::meta::info member : nonstatic_data_members_of(^^OriginalType))
-            if (identifier_of(member) == identifier)
-                alignment = alignment_of(member);
-
-        auto prev_type_size = sizes[Index-1];
-        auto mod = (offset_buffer[Index-1] + prev_type_size) % alignment;
-        auto adjust_for_alignment = mod != 0 ? alignment - mod : 0ul;
-
-        offset_buffer[Index] = offset_buffer[Index-1] + prev_type_size + adjust_for_alignment;
-    }
-}
-
-template <typename OriginalType, typename Layout, int... Indices, typename... Identifiers>
-consteval auto calc_offset_buffer_wrapper(Layout& offset_buffer, Layout& sizes, std::integer_sequence<int, Indices...> id_seq, Identifiers... identifiers) 
-{
-    (get_sizes_impl<Indices, OriginalType>(sizes, identifiers), ...);
-    (calc_offset_buffer_impl<Indices, OriginalType>(offset_buffer, sizes, identifiers), ...);
-}
-
-template <typename OriginalType, typename... Identifiers>
-consteval auto calc_offset_buffer(Identifiers... identifiers) 
-{
-    constexpr auto N = sizeof...(Identifiers);
-    constexpr auto Indices = std::make_integer_sequence<int, N>{};
-    std::array<size_t, N> offset_buffer;
-    std::array<size_t, N> sizes;
-
-    calc_offset_buffer_wrapper<OriginalType>(offset_buffer, sizes, Indices, identifiers...);
-
-    return offset_buffer;
-}
+#include "stringliteral.hpp"
+#include "reflection_helpers.hpp" 
+#include "custom_concepts.hpp"
 
 
-template<typename OriginalType, typename... Identifiers>
-consteval auto calc_size(Identifiers... identifiers)
-{
-    constexpr auto N = sizeof...(Identifiers);
-    std::array<size_t, N> sizes = get_sizes_wrapper<OriginalType>(identifiers...);
-    std::array<size_t, N> alignments = get_alignment_wrapper<OriginalType>(identifiers...);
-
-    size_t offset = 0;
-
-    for (size_t i = 0; i < N; i++)
-    {
-        auto mod = offset % alignments[i];
-        auto adjust_for_alignment = mod != 0 ? alignments[i] - mod :  0ul;
-
-        offset += sizes[i] + adjust_for_alignment;
-    }
-
-    // adjust for alignment of first element
-    auto mod = offset % alignments[0];
-    auto adjust_for_alignment = mod != 0 ? alignments[0] - mod :  0ul;
-
-    return offset + adjust_for_alignment;
-}
-
-template<typename OriginalType, typename... Members>
+template<typename OriginalType, StringLiteral... Identifiers>
 class DataPattern
 {
 public:
-    consteval DataPattern(OriginalType origin, Members... members)
-        : _size(calc_size<OriginalType>(members...)), _sizes(get_sizes_wrapper<OriginalType>(members...)),
-        _offset_type(calc_offset_type<OriginalType>(members...)),
-        _offset_buffer(calc_offset_buffer<OriginalType>(members...))
+    // Compile-time evaluated constructors
+    // This constructor takes the StringLiterals as arguments
+    consteval DataPattern()
+        requires has_only_trivially_copyable_types<OriginalType, Identifiers...> && is_without_pointers<OriginalType, Identifiers...>
+        : _size(calc_packed_size<OriginalType, Identifiers...>()),
+        _sizes(get_sizes<OriginalType, Identifiers...>()),
+        _offset_type(get_offsets<OriginalType, Identifiers...>()),
+        _offset_buffer(calc_offsets_in_buffer<OriginalType, Identifiers...>())
+    {}
+
+    // This constructor takes predetermined arrays and works on them
+    template<size_t N>
+    consteval DataPattern(size_t size, std::array<size_t, N> sizes, std::array<size_t, N> offset_type, std::array<size_t, N> offset_buffer)
+        requires has_only_trivially_copyable_types<OriginalType> && is_without_pointers<OriginalType, Identifiers...>
+        : _size(size),
+        _sizes(sizes),
+        _offset_type(offset_type),
+        _offset_buffer(offset_buffer)
+    {}
+    
+    // Run-time evaluated constructors
+    // This constructor takes the StringLiterals as arguments (the ranges are required to calculate the dynamic ranges)
+    template<are_input_ranges... Rs>
+    DataPattern(Rs... ranges)
+        requires (!has_only_trivially_copyable_types<OriginalType, Identifiers...>) && is_without_pointers<OriginalType, Identifiers...>
+        : _size(calc_packed_size_with_container_identifier<OriginalType, Identifiers...>(ranges...)),
+        _sizes(get_sizes<OriginalType, Identifiers...>()),
+        _offset_type(get_offsets<OriginalType, Identifiers...>()),
+        _offset_buffer(calc_offsets_in_buffer<OriginalType, Identifiers...>())
+    {}
+
+    // This constructor takes predetermined arrays and works on them
+    template<size_t N>
+    DataPattern(size_t size, std::array<size_t, N> sizes, std::array<size_t, N> offset_type, std::array<size_t, N> offset_buffer)
+        requires (!has_only_trivially_copyable_types<OriginalType>) && is_without_pointers<OriginalType, Identifiers...>
+        : _size(size),
+        _sizes(sizes),
+        _offset_type(offset_type),
+        _offset_buffer(offset_buffer)
     {}
 
     size_t store_from_type(std::byte* dest, OriginalType* base, size_t offset) const
     {
-        constexpr auto N = sizeof...(Members);
+        constexpr auto N = sizeof...(Identifiers);
         constexpr auto Indices = std::make_index_sequence<N>{};
 
-        return store_to_dest(dest, reinterpret_cast<std::byte*>(base), offset, Indices);
+        // Target Members are compile-time resolvable
+        if constexpr (has_only_trivially_copyable_types<OriginalType, Identifiers...>)
+            return store_to_dest(dest, reinterpret_cast<std::byte*>(base), offset, Indices);
+        // Target Members are not all compile-time resolvable
+        else
+            return store_to_dest_dynamic(dest, reinterpret_cast<std::byte*>(base), offset, Indices);
     }
 
     size_t load_to_type(OriginalType* base, std::byte* src, size_t offset) const
     {
-        constexpr auto N = sizeof...(Members);
+        constexpr auto N = sizeof...(Identifiers);
         constexpr auto Indices = std::make_index_sequence<N>{};
 
-        return load_from_src(reinterpret_cast<std::byte*>(base), src, offset, Indices);
+        // Target Members are compile-time resolvable
+        if constexpr (has_only_trivially_copyable_types<OriginalType, Identifiers...>)
+            return load_from_src(reinterpret_cast<std::byte*>(base), src, offset, Indices);
+        // Target Members are not all compile-time resolvable
+        else
+            return load_from_src_dynamic(reinterpret_cast<std::byte*>(base), src, offset, Indices);
     }
 
     constexpr auto get_size() const { return _size; }
@@ -193,6 +96,55 @@ private:
         return offset + _size;
     }
 
+    template<size_t Index>
+    auto copy(std::byte* dest, std::byte* origin, size_t& offset) const
+    {
+        constexpr auto types = get_types<OriginalType, Identifiers...>();
+
+        using T = typename [: types[Index] :];
+
+        // this requires runtime information
+        if constexpr (is_allocator_aware_container<T>)
+        {
+            auto container_ptr = reinterpret_cast<T*>(origin + _offset_type[Index]);
+            
+            auto data = container_ptr->data();
+            auto size = container_ptr->size();
+
+            using Value_Type = typename T::value_type;
+            
+            auto mod = offset % alignof(Value_Type);
+            auto adjust_for_alignment = mod != 0 ? alignof(Value_Type) - mod : 0ul;
+            offset += adjust_for_alignment;
+
+            std::memcpy(dest + offset, data, size * sizeof(Value_Type));
+
+            offset += size * sizeof(Value_Type);
+        }
+        // this not
+        else
+        {
+            auto mod = offset % alignof(T);
+            auto adjust_for_alignment = mod != 0 ? alignof(T) - mod : 0ul;
+            offset += adjust_for_alignment;
+
+            std::memcpy(dest + offset, origin + _offset_type[Index], _sizes[Index]);
+
+            offset += _sizes[Index];
+        }
+
+        return offset;
+    }
+
+    template<size_t... Indices>
+    size_t store_to_dest_dynamic(std::byte* dest, std::byte* origin, size_t offset, std::index_sequence<Indices...>) const
+    {
+        // the comma operator return the last instance of copy, 
+        // since in copy offset is passed by reference it is the same offset in functions called here
+        return (copy<Indices>(dest, origin, offset), ...);
+    }
+
+
     template<size_t... Indices>
     constexpr size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, std::index_sequence<Indices...> indices) const
     {
@@ -201,10 +153,61 @@ private:
         return offset + _size;
     }
 
+    template<size_t Index>
+    auto copy_rev(std::byte* origin, std::byte* src, size_t& offset) const
+    {
+        constexpr auto types = get_types<OriginalType, Identifiers...>();
+
+        using T = typename [: types[Index] :];
+        
+        if constexpr (is_allocator_aware_container<T>)
+        {
+            // this is a container
+            auto container_ptr = reinterpret_cast<T*>(origin + _offset_type[Index]);
+            
+            auto data = container_ptr->data();
+            auto size = container_ptr->size();
+
+            using Value_Type = typename T::value_type;
+
+            auto mod = offset % alignof(Value_Type);
+            auto adjust_for_alignment = mod != 0 ? alignof(Value_Type) - mod : 0ul;
+            offset += adjust_for_alignment;
+
+            std::memcpy(data, src + offset, size * sizeof(Value_Type));
+
+            offset += size * sizeof(Value_Type);
+        }
+        else
+        {            
+            auto mod = offset % alignof(T);
+            auto adjust_for_alignment = mod != 0 ? alignof(T) - mod : 0ul;
+            offset += adjust_for_alignment;
+
+            std::memcpy(origin + _offset_type[Index], src + offset, _sizes[Index]);
+
+            offset += _sizes[Index];
+        }
+
+        return offset;
+    }
+
+    template<size_t... Indices>
+    constexpr size_t load_from_src_dynamic(std::byte* origin, std::byte* src, size_t offset, std::index_sequence<Indices...> indices) const
+    {
+        // the comma operator return the last instance of copy, 
+        // since in copy offset is passed by reference it is the same offset in functions called here
+        return (copy_rev<Indices>(origin, src, offset), ...);
+    }
+
+    // The size has a different meaning depending on the types in a datapattern
+    // If all types are trivialy copyable, _size is the size of one instance serialized
+    // If there is at least one allocator aware container, _size is the size of the entire range (because it is possible that one instance has a different size)
     const size_t _size {0};
-    const std::array<size_t, sizeof...(Members)> _sizes;
-    const std::array<size_t, sizeof...(Members)> _offset_type;
-    const std::array<size_t, sizeof...(Members)> _offset_buffer;
+    const std::array<size_t, sizeof...(Identifiers)> _sizes;
+    const std::array<size_t, sizeof...(Identifiers)> _offset_type;
+    const std::array<size_t, sizeof...(Identifiers)> _offset_buffer;
 };
+
 
 #endif

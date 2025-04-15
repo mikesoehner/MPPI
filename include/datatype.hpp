@@ -14,6 +14,7 @@
 #include "parameter_pack_helpers.hpp"
 #include "custom_concepts.hpp"
 #include "datapattern.hpp"
+#include "reflection_helpers.hpp"
 
 #include "mpi.h"
 
@@ -150,7 +151,8 @@ private:
 
 /* ------------------------------ Specialization: multiple ranges ------------------------------ */
 template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, are_input_ranges... Rs> 
-    requires are_same_types<Rs...> // underlying type of the ranges needs to be the same
+    requires are_same_types<Rs...> &&                   // value type of the ranges needs to be the same
+            are_value_types_trivially_copyable<Rs...>   // value type needs to be trivially copyable
 class Data<SR, MemRes, Rs...>
 {
 public:
@@ -169,8 +171,9 @@ public:
         fill_range(_buffer.begin(), ranges...);
     }
     
-    constexpr MPI_Datatype get_type() const { return Type2MPI::transform(BufferType{}); }
-    int get_count() const { return _buffer.size(); }
+    // constexpr MPI_Datatype get_type() const { return Type2MPI::transform(BufferType{}); }
+    constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
+    int get_count() const { return _buffer.size() * sizeof(BufferType); }
     auto get_data() { return _buffer.data(); }
 
 private:
@@ -218,13 +221,130 @@ private:
 };
 
 
+/* ------------------------------ Specialization: multiple ranges with underlying non-standard-layout type ---------------------------- */
+template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, are_input_ranges... Rs> 
+    requires are_same_types<Rs...> &&                       // value type of the ranges needs to be the same
+            (!are_value_types_trivially_copyable<Rs...>)    // specialization for non-trivial copy types
+class Data<SR, MemRes, Rs...>
+{
+public:
+    // constructor that fills the internal _buffer
+    Data(SR, MemRes& mem_res, Rs&... ranges)
+        : _buffer{ &mem_res }
+    {
+        // we want to create a datatype that gets all the members of a type and it's bases
+        constexpr auto N = get_total_nb_members<BufferType>();
+        constexpr auto indices = std::make_index_sequence<N>{};
+        constexpr auto sizes = get_sizes<BufferType>();
+        constexpr auto offset_type = get_offsets<BufferType>();
+        constexpr auto offset_buffer = calc_offsets_in_buffer<BufferType>();
+
+        auto lambda = [&, sizes, offset_type, offset_buffer]<size_t... Indices>(auto type, std::index_sequence<Indices...>)
+        {
+            using T = decltype(type);
+
+            if constexpr (has_only_trivially_copyable_types<T>)
+                return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size<T>(), sizes, offset_type, offset_buffer);
+            else
+                return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size_with_container<T>(ranges...), sizes, offset_type, offset_buffer);
+        };
+
+        auto data_pattern = lambda(BufferType{}, indices);
+
+        // resize _buffer
+        if constexpr (has_only_trivially_copyable_types<BufferType>)
+            _buffer.resize(ranges_size(ranges...) * data_pattern.get_size());
+        else
+            _buffer.resize(data_pattern.get_size());
+        // check if we want to send and have to copy the data
+        if constexpr ( std::is_same_v<SR, Send>)
+        {
+            // copy data
+            constexpr size_t offset = 0;
+            fill_pattern(data_pattern, offset, ranges...);
+        }
+    }
+
+    void retrieve_data(Rs&... ranges)
+    {
+        constexpr auto N = get_total_nb_members<BufferType>();
+        constexpr auto indices = std::make_index_sequence<N>{};
+        constexpr auto sizes = get_sizes<BufferType>();
+        constexpr auto offset_type = get_offsets<BufferType>();
+        constexpr auto offset_buffer = calc_offsets_in_buffer<BufferType>();
+
+        auto lambda = [&, sizes, offset_type, offset_buffer]<size_t... Indices>(auto type, std::index_sequence<Indices...>)
+        {
+            using T = decltype(type);
+
+            if constexpr (has_only_trivially_copyable_types<T>)
+                return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size<T>(), sizes, offset_type, offset_buffer);
+            else
+                return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size_with_container<T>(ranges...), sizes, offset_type, offset_buffer);
+        };
+
+        auto data_pattern = lambda(BufferType{}, indices);
+
+        size_t offset = 0;
+        fill_buffer(data_pattern, offset, ranges...);
+    }
+    
+    constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
+    int get_count() const { return _buffer.size(); }
+    auto get_data() { return _buffer.data(); }
+
+private:
+    // underlying type of the buffer
+    typedef decltype(get_first_underlying_type<Rs...>()) BufferType;
+
+    // base case
+    template<typename Pattern, typename U>
+    constexpr void fill_pattern(Pattern const& pattern, size_t offset, U& range)
+    {
+        // loop through range
+        for (auto& element : range)
+            offset = pattern.store_from_type(_buffer.data(), &element, offset);
+    }
+    // specialization case
+    template<typename Pattern, typename U, typename... Us>
+    constexpr void fill_pattern(Pattern const& pattern, size_t offset, U& range, Us&... tail)
+    {
+        // loop through range
+        for (auto& element : range)
+            offset = pattern.store_from_type(_buffer.data(), &element, offset);
+
+        fill_pattern(pattern, offset, tail...);
+    }
+
+    // base case
+    template<typename Pattern, typename U>
+    constexpr void fill_buffer(Pattern const& pattern, size_t offset, U& range)
+    {
+        // loop through range
+        for (auto& element : range)
+            offset = pattern.load_to_type(&element, _buffer.data(), offset);
+    }
+    // specialization case
+    template<typename Pattern, typename U, typename... Us>
+    constexpr void fill_buffer(Pattern const& pattern, size_t offset, U& range, Us&... tail)
+    {
+        // loop through range
+        for (auto& element : range)
+            offset = pattern.load_to_type(&element, _buffer.data(), offset);
+
+        fill_buffer(pattern, offset, tail...);
+    }
+
+    std::pmr::vector<std::byte> _buffer;
+};
+
+
 /* ------------------------------ Specialization: single range ------------------------------ */
 template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, std::ranges::input_range R>
-    requires std::ranges::contiguous_range<R> // range has to be contiguous (i.e. vector, array, etc.)
+    requires std::ranges::contiguous_range<R> && is_value_type_trivially_copyable<R> // Range has to be contigous && value type of range has to be trivially copyable
 class Data<SR, MemRes, R>
 {
 public:
-    // TODO: works with views, but ranges need to be given by reference for this to work
     // data is only referenced by _buffer_ptr, so no copying done
     Data(SR, MemRes&, R& range)
     {
@@ -238,8 +358,9 @@ public:
             copy_to_range(range);
     }
 
-    constexpr MPI_Datatype get_type() const { return Type2MPI::transform(BufferType{}); }
-    int get_count() const { return _buffer_size; }
+    // constexpr MPI_Datatype get_type() const { return Type2MPI::transform(BufferType{}); }
+    constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
+    int get_count() const { return _buffer_size * sizeof(BufferType); }
     auto get_data() { return _buffer_ptr; }
 
 private:
@@ -251,7 +372,7 @@ private:
     auto get_range_size(R& range) const { return std::ranges::distance(range); }
 
     template<typename T>
-    void copy_to_range(T range) { std::memcpy(range.data(), _buffer_ptr, _buffer_size * sizeof(BufferType)); }
+    void copy_to_range(T& range) { std::memcpy(range.data(), _buffer_ptr, _buffer_size * sizeof(BufferType)); }
 
     BufferType* _buffer_ptr {};
     int _buffer_size {};
@@ -259,16 +380,20 @@ private:
 
 
 /* ------------------------------ Specialization: ranges with DataPattern ------------------------------ */
-template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, typename... Ts, are_input_ranges... Rs> 
-class Data<SR, MemRes, DataPattern<Ts...>, Rs...>
+template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, typename T, StringLiteral... Identifiers, are_input_ranges... Rs>
+    requires are_same_types<Rs...>      // value type of the ranges needs to be the same
+class Data<SR, MemRes, DataPattern<T, Identifiers...>, Rs...>
 {
 public:
     // constructor that fills the internal _buffer
-    Data(SR, MemRes& mem_res, DataPattern<Ts...> const& data_pattern, Rs&... ranges)
+    Data(SR, MemRes& mem_res, DataPattern<T, Identifiers...> const& data_pattern, Rs&... ranges)
         : _buffer{ &mem_res }
     {
         // resize _buffer
-        _buffer.resize(ranges_size(ranges...) * data_pattern.get_size());
+        if constexpr (has_only_trivially_copyable_types<T, Identifiers...>)
+            _buffer.resize(ranges_size(ranges...) * data_pattern.get_size());
+        else
+            _buffer.resize(data_pattern.get_size());
         // check if we want to send and have to copy the data
         if constexpr ( std::is_same_v<SR, Send>)
         {
@@ -278,7 +403,7 @@ public:
         }
     }
 
-    void retrieve_data(DataPattern<Ts...> const& data_pattern, Rs&... ranges)
+    void retrieve_data(DataPattern<T, Identifiers...> const& data_pattern, Rs&... ranges)
     {
         size_t offset = 0;
         fill_buffer(data_pattern, offset, ranges...);

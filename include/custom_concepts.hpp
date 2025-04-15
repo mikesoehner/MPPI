@@ -4,6 +4,7 @@
 #include <type_traits>
 #include <ranges>
 #include <concepts>
+#include "parameter_pack_helpers.hpp"
 
 // concept checks for pmr memory resource (etc. monotonic_buffer_resource, unsynchronized_pool_resource, ...)
 template<typename T>
@@ -40,5 +41,18 @@ constexpr bool all_types_are_same = std::conjunction_v<std::is_same<
 
 template<typename... Ts>
 concept are_same_types = (all_types_are_same<Ts...>);
+
+// check if underlying type has a standard layout
+template<typename... Ts>
+concept has_underlying_standard_layout = std::is_standard_layout_v<decltype(get_first_underlying_type<Ts...>())>;
+
+// check if underlying type is trivially copyable
+template<typename Range>
+concept is_value_type_trivially_copyable = 
+    requires { typename std::ranges::range_value_t<Range>; } && 
+    std::is_trivially_copyable_v< typename std::ranges::range_value_t<Range> >;
+
+template<typename... Ranges>
+concept are_value_types_trivially_copyable = (is_value_type_trivially_copyable<Ranges> && ...);
 
 #endif

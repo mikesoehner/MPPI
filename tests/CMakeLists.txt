@@ -1,4 +1,3 @@
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../include)
 
 find_package(Catch2 3 REQUIRED)
 # These tests can use the Catch2-provided main
@@ -19,6 +18,16 @@ target_link_libraries(datapattern_tests
         MPI::MPI_CXX
         mppi::mppi)
 target_compile_features(datapattern_tests
+        PRIVATE
+            cxx_std_23)
+
+# These tests can use the Catch2-provided main
+add_executable(reflection_tests reflection_tests.cpp)
+target_link_libraries(reflection_tests 
+    PRIVATE 
+        Catch2::Catch2WithMain
+        mppi::mppi)
+target_compile_features(reflection_tests
         PRIVATE
             cxx_std_23)
 

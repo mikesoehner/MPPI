@@ -200,7 +200,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             std::array<float, 3> _d {};
         };
 
-        constexpr DataPattern data_pattern(TestClass{}, "_a", "_d");
+        constexpr DataPattern<TestClass, "_a", "_d"> data_pattern;
 
         std::vector<TestClass> tests_vec;
         
@@ -258,7 +258,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             int _d;
         };
 
-        constexpr DataPattern data_pattern(TestClass{}, "_a", "_b", "_d");
+        constexpr DataPattern<TestClass, "_a", "_b", "_d"> data_pattern;
 
         std::vector<TestClass> tests_vec;
         
@@ -291,6 +291,83 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             REQUIRE(tests_vec[1].get_d() == 4);
             REQUIRE(tests_vec[2].get_d() == 5);
             REQUIRE(tests_vec[3].get_d() == 6);
+        }
+    }
+
+    SECTION("Sending an entire stl container with a dynamic DataPattern")
+    {
+        class TestClass
+        {
+        public:
+            TestClass() = default;
+            TestClass(int a, int b, double c, std::vector<float> d)
+                : _a(a), _b(b), _c(c), _d(d)
+            {}
+    
+            int& get_a() { return _a; }
+            int& get_b() { return _b; }
+            double& get_c() { return _c; }
+            std::vector<float>& get_d() { return _d; }
+    
+        private:
+            int _a {};
+            int _b {};
+            double _c {};
+            std::vector<float> _d {};
+        };
+
+
+        std::vector<TestClass> tests_vec;
+        
+        if (comm.get_rank() == 0)
+        {
+            tests_vec.emplace_back(TestClass(1, 2, 3.0, {4.0f, 5.0f}));
+            tests_vec.emplace_back(TestClass(2, 3, 4.0, {5.0f, 6.0f, 7.0f, 8.0f}));
+            tests_vec.emplace_back(TestClass(3, 4, 5.0, {6.0f}));
+            tests_vec.emplace_back(TestClass(4, 5, 6.0, {7.0f, 8.0f, 9.0f, 10.0f, 11.0f}));
+
+            DataPattern<TestClass, "_a", "_d"> data_pattern(tests_vec);
+
+            comm.send(1, Tag(0), data_pattern, tests_vec);
+        }
+        else
+        {
+            tests_vec.resize(4);
+            tests_vec[0] = TestClass(0, 0, 0.0, {0.0f, 0.0f});
+            tests_vec[1] = TestClass(0, 0, 0.0, {0.0f, 0.0f, 0.0f, 0.0f});
+            tests_vec[2] = TestClass(0, 0, 0.0, {0.0f});
+            tests_vec[3] = TestClass(0, 0, 0.0, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
+
+            DataPattern<TestClass, "_a", "_d"> data_pattern(tests_vec);
+
+            comm.recv(0, Tag(0), data_pattern, tests_vec);
+
+            REQUIRE(tests_vec[0].get_a() == 1);
+            REQUIRE(tests_vec[1].get_a() == 2);
+            REQUIRE(tests_vec[2].get_a() == 3);
+            REQUIRE(tests_vec[3].get_a() == 4);
+
+            REQUIRE(tests_vec[0].get_b() == 0);
+            REQUIRE(tests_vec[1].get_b() == 0);
+            REQUIRE(tests_vec[2].get_b() == 0);
+            REQUIRE(tests_vec[3].get_b() == 0);
+
+            REQUIRE(std::abs(tests_vec[0].get_d()[0] - 4.0f) < 0.00001f);
+            REQUIRE(std::abs(tests_vec[1].get_d()[0] - 5.0f) < 0.00001f);
+            REQUIRE(std::abs(tests_vec[2].get_d()[0] - 6.0f) < 0.00001f);
+            REQUIRE(std::abs(tests_vec[3].get_d()[0] - 7.0f) < 0.00001f);
+
+            REQUIRE(std::abs(tests_vec[0].get_d()[1] - 5.0f) < 0.00001f);
+            REQUIRE(std::abs(tests_vec[1].get_d()[1] - 6.0f) < 0.00001f);
+            REQUIRE(std::abs(tests_vec[3].get_d()[1] - 8.0f) < 0.00001f);
+
+            REQUIRE(std::abs(tests_vec[1].get_d()[2] - 7.0f) < 0.00001f);
+            REQUIRE(std::abs(tests_vec[3].get_d()[2] - 9.0f) < 0.00001f);
+
+            REQUIRE(std::abs(tests_vec[1].get_d()[3] - 8.0f) < 0.00001f);
+            REQUIRE(std::abs(tests_vec[3].get_d()[3] - 10.0f) < 0.00001f);
+
+            REQUIRE(std::abs(tests_vec[3].get_d()[4] - 11.0f) < 0.00001f);
         }
     }
 }

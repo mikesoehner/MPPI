@@ -89,15 +89,15 @@ public:
         MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm); 
     }
 
-    template<typename... Ts, are_input_ranges... Rs>
-    void send(int destination, Tag tag, DataPattern<Ts...> const& data_pattern, Rs&... ranges)
+    template<typename T, StringLiteral... Identifiers, are_input_ranges... Rs>
+    void send(int destination, Tag tag, DataPattern<T, Identifiers...> const& data_pattern, Rs&... ranges)
     {
         Data data(Send{}, _pool, data_pattern, ranges...);
         MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm);
     }
 
-    template<typename... Ts, are_only_views... Vs>
-    void send(int destination, Tag tag, DataPattern<Ts...> const& data_pattern, Vs... views)
+    template<typename T, StringLiteral... Identifiers, are_only_views... Vs>
+    void send(int destination, Tag tag, DataPattern<T, Identifiers...> const& data_pattern, Vs... views)
     {
         Data data(Send{}, _pool, data_pattern, views...);
         MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm);
@@ -125,8 +125,8 @@ public:
         data.retrieve_data(views...);
     }
 
-    template<typename... Ts, are_only_ranges... Rs>
-    auto recv(int source, Tag tag, DataPattern<Ts...> const& data_pattern, Rs&... ranges)
+    template<typename T, StringLiteral... Identifiers, are_only_ranges... Rs>
+    auto recv(int source, Tag tag, DataPattern<T, Identifiers...> const& data_pattern, Rs&... ranges)
     {
         Data data(Recv{}, _pool, data_pattern, ranges...);
 
@@ -135,8 +135,8 @@ public:
         data.retrieve_data(data_pattern , ranges...);
     }
 
-    template<typename... Ts, are_only_views... Vs>
-    auto recv(int source, Tag tag, DataPattern<Ts...> const& data_pattern, Vs... views)
+    template<typename T, StringLiteral... Identifiers, are_only_views... Vs>
+    auto recv(int source, Tag tag, DataPattern<T, Identifiers...> const& data_pattern, Vs... views)
     {
         Data data(Recv{}, _pool, data_pattern, views...);
 
