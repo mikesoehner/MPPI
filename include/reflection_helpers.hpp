@@ -455,7 +455,7 @@ consteval auto is_copy_insertable_impl()
     A m;
     T t;
     T* p = &t;
-    T v = 4;
+    T v{};
     T old_v = v;
     std::allocator_traits<A>::construct(m, p, v);
 
