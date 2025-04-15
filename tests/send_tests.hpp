@@ -48,8 +48,8 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
 
             REQUIRE(a == 4);
             REQUIRE(b == 5);
-            REQUIRE(c == 78.0f);
-        }   
+            REQUIRE(std::abs(c - 78.0f) < 0.00001f); 
+        }
     }
 
     SECTION("Sending an entire stl container")
