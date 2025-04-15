@@ -25,14 +25,27 @@ consteval auto calc_size(T, Ts...)
     return calc_size<offset + sizeof(T) + adjust_for_alignment>(Ts{}...);
 }
 
-template<size_t size, typename T, typename... Ts>
-consteval auto adjust_for_first_element(T const&, Ts const&...)
+template<typename T>
+consteval auto max_alignment(T)
 {
-    constexpr auto mod = size % alignof(T);
-    constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
+    return alignof(T);
+}
+template<typename T, typename... Ts>
+consteval auto max_alignment(T, Ts...)
+{
+    return std::max(alignof(T), max_alignment(Ts{}...));
+}
+
+template<size_t size, typename T, typename... Ts>
+consteval auto adjust_for_first_element()
+{
+    constexpr auto max = max_alignment(T{}, Ts{}...);
+    constexpr auto mod = size % max;
+    constexpr auto adjust_for_alignment = mod != 0 ? max - mod :  0ul;
     
     return size + adjust_for_alignment;
 }
+
 
 template<typename Origin, typename... Members>
 class DataPattern
@@ -44,7 +57,7 @@ public:
         constexpr size_t offset = 0;
         constexpr auto tmp_size = calc_size<offset>(Members{}...);
         // adjust for alignment of first element again
-        _size = adjust_for_first_element<tmp_size>(Members{}...);
+        _size = adjust_for_first_element<tmp_size, Members...>();
         // fill buffer of offsets
         fill_displs_buffer<0>(origin, members...);
     }
