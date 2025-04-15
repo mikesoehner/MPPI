@@ -110,22 +110,34 @@ private:
         // this requires runtime information
         if constexpr (is_allocator_aware_container<T>)
         {
+            using Value_Type = typename T::value_type;
+
+            static_assert(std::is_trivially_copyable_v<Value_Type>);
+
             auto container_ptr = Pack ? reinterpret_cast<T*>(src + _offset_type[Index]) :
                                         reinterpret_cast<T*>(dest + _offset_type[Index]);
             
-            auto data = container_ptr->data();
             auto size = container_ptr->size();
-
-            using Value_Type = typename T::value_type;
+            auto begin = container_ptr->begin();
+            auto end = container_ptr->end();
             
             auto mod = offset % alignof(Value_Type);
             auto adjust_for_alignment = mod != 0 ? alignof(Value_Type) - mod : 0ul;
             offset += adjust_for_alignment;
 
             if constexpr (Pack)
-               std::memcpy(dest + offset, data, size * sizeof(Value_Type));
+            { 
+                std::byte* destination = dest + offset;
+
+                std::copy(begin, end, reinterpret_cast<Value_Type*>(destination));
+            }
             else
-                std::memcpy(data, src + offset, size * sizeof(Value_Type));
+            {
+                std::byte* start = src + offset;
+                std::byte* stop = src + offset + size * sizeof(Value_Type);
+
+                std::copy(reinterpret_cast<Value_Type*>(start), reinterpret_cast<Value_Type*>(stop), begin);
+            }
 
             offset += size * sizeof(Value_Type);
         }

@@ -483,6 +483,61 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         REQUIRE(xs_copy[1].get_d()[3] == 12);
     }
 
+    SECTION("Test with differently-sized dynamic allocator non-consecutive container in class")
+    {
+        class X
+        {
+        public:
+            X() = default;
+            X(char a, std::list<int> d)
+                : _a(a), _d(d)
+            {}
+
+            auto& get_a() { return _a; }
+            auto& get_d() { return _d; }
+
+        private:
+            char _a;
+            std::list<int> _d;
+        };
+
+        std::array<X, 3> xs;
+        xs[0] = X('a', {3, 1});
+        xs[1] = X('b', {4, 2, 6, 12});
+        xs[2] = X('c', {5, 6, 7});
+
+        std::pmr::monotonic_buffer_resource mem_res {};
+        Data data(Send{}, mem_res, xs);
+
+        std::array<X, 3> xs_copy;
+        xs_copy[0] = X(' ', {0, 0});
+        xs_copy[1] = X(' ', {0, 0, 0, 0});
+        xs_copy[2] = X(' ', {0, 0, 0});
+
+        data.retrieve_data(xs_copy);
+
+        REQUIRE(xs_copy[0].get_a() == 'a');
+        REQUIRE(xs_copy[1].get_a() == 'b');
+        REQUIRE(xs_copy[2].get_a() == 'c');
+
+        auto iter0 = xs_copy[0].get_d().begin();
+        auto iter1 = xs_copy[1].get_d().begin();
+        auto iter2 = xs_copy[2].get_d().begin();
+
+        REQUIRE(*iter0++ == 3);
+        REQUIRE(*iter1++ == 4);
+        REQUIRE(*iter2++ == 5);
+
+        REQUIRE(*iter0++ == 1);
+        REQUIRE(*iter1++ == 2);
+        REQUIRE(*iter2++ == 6);
+
+        REQUIRE(*iter1++ == 6);
+        REQUIRE(*iter2++ == 7);
+
+        REQUIRE(*iter1++ == 12);
+    }
+
     SECTION("Test with dynamic allocator container in base class")
     {
         class X
