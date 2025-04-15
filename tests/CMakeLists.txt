@@ -1,5 +1,3 @@
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../include)
-
 find_package(Catch2 3 REQUIRED)
 # These tests can use the Catch2-provided main
 add_executable(amodes_tests amodes_tests.cpp)
