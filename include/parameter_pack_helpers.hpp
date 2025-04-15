@@ -1,5 +1,5 @@
-#ifndef MPPI_PARAMETER_PACK_HELPER_H
-#define MPPI_PARAMETER_PACK_HELPER_H
+#ifndef MPPI_PARAMETER_PACK_HELPER_HPP
+#define MPPI_PARAMETER_PACK_HELPER_HPP
 
 #include <cstring>
 #include <ranges>
