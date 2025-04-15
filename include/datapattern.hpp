@@ -62,16 +62,16 @@ public:
         fill_displs_buffer<0>(origin, members...);
     }
 
-    size_t store_from_type(std::byte* dest, Origin* base, size_t offset) const
+    size_t pack(std::byte* dest, Origin* base, size_t offset) const
     {
         constexpr size_t alignment = 0;
-        return store_to_dest<alignment, 0>(dest, reinterpret_cast<std::byte*>(base), offset, Members{}...);
+        return copy<alignment, 0, true>(dest, reinterpret_cast<std::byte*>(base), offset, Members{}...);
     }
 
-    size_t load_to_type(Origin* base, std::byte* src, size_t offset) const
+    size_t unpack(Origin* base, std::byte* src, size_t offset) const
     {
         constexpr size_t alignment = 0;
-        return load_from_src<alignment, 0>(reinterpret_cast<std::byte*>(base), src, offset, Members{}...);
+        return copy<alignment, 0, false>(reinterpret_cast<std::byte*>(base), src, offset, Members{}...);
     }
 
     auto get_size() const { return _size; }
@@ -93,64 +93,40 @@ private:
         fill_displs_buffer<I+1>(origin, tail...);
     }
 
-
-    template<size_t alignment, int I, typename T>
-    constexpr size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, T const& head) const
+    template<size_t Alignment, int I, bool Pack, typename T>
+    constexpr size_t copy(std::byte* dest, std::byte* src, size_t offset, T const& head) const
     {
         // check if offset matches alignment of head
-        constexpr auto mod = alignment % alignof(T);
-        constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
-
-        offset += adjust_for_alignment;
-
-        std::memcpy(dest + offset, origin + _displacements[I], sizeof(T));
-
-        return offset + sizeof(T);
-    }
-    // TODO: Fix this function (replacing alignment with offset works, why? Maybe replace mod calculations with an array with stored precomputed results).
-    template<size_t alignment, int I, typename T, typename... Ts>
-    constexpr size_t store_to_dest(std::byte* dest, std::byte* origin, size_t offset, T const& head, Ts const&... tail) const
-    {
-        // check if offset matches alignment of head
-        constexpr auto mod = alignment % alignof(T);
+        constexpr auto mod = Alignment % alignof(T);
         constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
         
         offset += adjust_for_alignment;
-
-        std::memcpy(dest + offset, origin + _displacements[I], sizeof(T));
-
-        offset += sizeof(T);
-
-        return store_to_dest<alignment + adjust_for_alignment + sizeof(T), I+1>(dest, origin, offset, tail...);
-    }
-
-    template<size_t alignment, int I, typename T>
-    constexpr size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, T const& head) const
-    {
-        // check if offset matches alignment of head
-        constexpr auto mod = alignment % alignof(T);
-        constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
-
-        offset += adjust_for_alignment;
-
-        std::memcpy(origin + _displacements[I], src + offset, sizeof(T));
+        
+        if constexpr (Pack)
+            std::memcpy(dest + offset, src + _displacements[I], sizeof(T));
+        else
+            std::memcpy(dest + _displacements[I], src + offset, sizeof(T));
 
         return offset + sizeof(T);
     }
-    template<size_t alignment, int I, typename T, typename... Ts>
-    constexpr size_t load_from_src(std::byte* origin, std::byte* src, size_t offset, T const& head, Ts const&...  tail) const
+    
+    template<size_t Alignment, int I, bool Pack, typename T, typename... Ts>
+    constexpr size_t copy(std::byte* dest, std::byte* src, size_t offset, T const& head, Ts const&... tail) const
     {
         // check if offset matches alignment of head
-        constexpr auto mod = alignment % alignof(T);
+        constexpr auto mod = Alignment % alignof(T);
         constexpr auto adjust_for_alignment = mod != 0 ? alignof(T) - mod :  0ul;
-
+        
         offset += adjust_for_alignment;
-
-        std::memcpy(origin + _displacements[I], src + offset, sizeof(T));
+        
+        if constexpr (Pack)
+            std::memcpy(dest + offset, src + _displacements[I], sizeof(T));
+        else
+            std::memcpy(dest + _displacements[I], src + offset, sizeof(T));
 
         offset += sizeof(T);
 
-        return load_from_src<alignment + adjust_for_alignment + sizeof(T), I+1>(origin, src, offset, tail...);
+        return copy<Alignment + adjust_for_alignment + sizeof(T), I+1, Pack>(dest, src, offset, tail...);
     }
 
     std::array<std::ptrdiff_t, sizeof...(Members)> _displacements;
