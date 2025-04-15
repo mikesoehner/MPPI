@@ -59,7 +59,7 @@ public:
         : _buffer { &memres } 
     {
         constexpr std::size_t offset = 0;
-        _buffer.resize(size_of_fundamentals<offset>(offset, fundamentals...));
+        _buffer.resize(size_of_fundamentals<offset>(fundamentals...));
         // if we are sending data, we need to copy the args
         if constexpr ( std::is_same_v<SR, Send> )
             fill_buffer<offset>(_buffer.data(), fundamentals...);
