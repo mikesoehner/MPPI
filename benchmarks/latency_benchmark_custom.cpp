@@ -46,11 +46,9 @@ int main(int argc, char** argv)
 
     MPI_Status reqstat;
 
-    DataPattern data_pattern(TestClass{}, "_a", "_b", "_d", "_f");
+    constexpr DataPattern<TestClass, "_a", "_b", "_d", "_f"> data_pattern;
 
     std::tuple data_patterns {data_pattern};
-    std::vector<MPI_Datatype> mpi_types;
-    mpi_types.emplace_back(MPI_DATATYPE_NULL);
 
     constexpr auto size = std::tuple_size_v<decltype(data_patterns)>;
     

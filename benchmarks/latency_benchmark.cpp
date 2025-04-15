@@ -70,9 +70,6 @@ int main(int argc, char** argv)
 
     std::vector<MPI_Datatype> mpi_types;
     mpi_types.emplace_back(mpi_dt_mystruct);
-    // mpi_types.emplace_back(MPI_CHAR);
-    // mpi_types.emplace_back(MPI_INT);
-    // mpi_types.emplace_back(MPI_FLOAT);
 
     // loop through different datatypes that should be benchmarked
     for (auto mpi_type : mpi_types)

@@ -16,6 +16,15 @@ target_compile_features(latency_benchmark_custom
         PRIVATE
             cxx_std_23)
 
+add_executable(latency_benchmark_custom_dynamic latency_benchmark_custom_dynamic.cpp)
+target_link_libraries(latency_benchmark_custom_dynamic
+    PRIVATE 
+        MPI::MPI_CXX
+        mppi::mppi)
+target_compile_features(latency_benchmark_custom_dynamic
+        PRIVATE
+            cxx_std_23)
+
 add_executable(latency_benchmark_control latency_benchmark_control.cpp)
 target_link_libraries(latency_benchmark_control
     PRIVATE 
