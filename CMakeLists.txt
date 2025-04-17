@@ -13,7 +13,7 @@ find_package(MPI REQUIRED)
 add_library(mppi INTERFACE)
 target_include_directories(mppi
     INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    ${CMAKE_CURRENT_SOURCE_DIR}/mppi)
 
 add_library(mppi::mppi ALIAS mppi)
 target_link_libraries(mppi INTERFACE MPI::MPI_CXX)
