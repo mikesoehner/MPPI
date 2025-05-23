@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
+#include <memory>
 #include "datapattern.hpp"
 #include "datatype.hpp"
-#include <memory>
 // #include "communicator.hpp"
 
 TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
@@ -30,7 +30,7 @@ TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
     {
         Test test(1, 2, 3.0, {4.0f, 5.0f, 6.0f});
 
-        constexpr DataPattern<Test, "_a", "_c"> data_pattern;
+        constexpr mppi::DataPattern<Test, "_a", "_c"> data_pattern;
 
         struct Destination
         {
@@ -56,11 +56,11 @@ TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
         tests.emplace_back(Test(3, 4, 5.0, {6.0f, 7.0f, 8.0f}));
         tests.emplace_back(Test(4, 5, 6.0, {7.0f, 8.0f, 9.0f}));
 
-        constexpr DataPattern<Test, "_a", "_c", "_d"> data_pattern;
+        constexpr mppi::DataPattern<Test, "_a", "_c", "_d"> data_pattern;
 
         std::pmr::monotonic_buffer_resource mem_res {};
         auto view = tests | std::ranges::views::all;
-        Data data(Send{}, mem_res, data_pattern, tests);
+        mppi::Data data(mppi::Send{}, mem_res, data_pattern, tests);
 
         // reset original vector
         tests[0] = Test{};

@@ -1,10 +1,10 @@
 #include <catch2/catch_session.hpp>
 #include <mpi.h>
-// #include "test.hpp"
-#include "send_tests.hpp"
-#include "communicator.hpp"
+
 #include <numeric>
 #include <vector>
+#include "send_tests.hpp"
+#include "communicator.hpp"
 
 
 int main(int argc, char* argv[])

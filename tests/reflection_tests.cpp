@@ -31,7 +31,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         xs[2] = X('3', 4, 5.6);
 
         std::pmr::monotonic_buffer_resource mem_res {};
-        Data data(Send{}, mem_res, xs);
+        mppi::Data data(mppi::Send{}, mem_res, xs);
 
         // reset original vector
         xs[0] = X{};
@@ -94,7 +94,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         ys[2] = Y('3', 4, 5.6);
 
         std::pmr::monotonic_buffer_resource mem_res {};
-        Data data(Send{}, mem_res, ys);
+        mppi::Data data(mppi::Send{}, mem_res, ys);
 
         // reset original vector
         ys[0] = Y{};
@@ -154,7 +154,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         ys[2] = Y('3', 4, 5.6, 8.2f);
 
         std::pmr::monotonic_buffer_resource mem_res {};
-        Data data(Send{}, mem_res, ys);
+        mppi::Data data(mppi::Send{}, mem_res, ys);
 
         // create array into which packed data can be copied
         std::array<Y, 3> copy_ys;
@@ -227,7 +227,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         zs[0] = Z('1', 2, 3.1, 6.7f, 8);
 
         std::pmr::monotonic_buffer_resource mem_res {};
-        Data data(Send{}, mem_res, zs);
+        mppi::Data data(mppi::Send{}, mem_res, zs);
 
         std::array<Z, 1> copy_zs;
 
@@ -266,7 +266,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         xs[2] = X('3', 4, 5.6);
 
         std::pmr::monotonic_buffer_resource mem_res {};
-        Data data(Send{}, mem_res, xs);
+        mppi::Data data(mppi::Send{}, mem_res, xs);
 
         std::array<X, 3> xs_copy;
 
@@ -316,7 +316,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         xs1[2] = X('3', 4, 5.6);
 
         std::pmr::monotonic_buffer_resource mem_res {};
-        Data data(Send{}, mem_res, xs0, xs1);
+        mppi::Data data(mppi::Send{}, mem_res, xs0, xs1);
 
         std::array<X, 3> xs0_copy;
         std::array<X, 3> xs1_copy;
@@ -406,7 +406,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         xs[2] = X('c', {5, 6, 7});
 
         std::pmr::monotonic_buffer_resource mem_res {};
-        Data data(Send{}, mem_res, xs);
+        mppi::Data data(mppi::Send{}, mem_res, xs);
 
         std::array<X, 3> xs_copy;
         xs_copy[0] = X(' ', {0, 0, 0});
@@ -456,7 +456,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         xs[2] = X('c', {5, 6, 7});
 
         std::pmr::monotonic_buffer_resource mem_res {};
-        Data data(Send{}, mem_res, xs);
+        mppi::Data data(mppi::Send{}, mem_res, xs);
 
         std::array<X, 3> xs_copy;
         xs_copy[0] = X(' ', {0, 0});
@@ -507,7 +507,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         xs[2] = X('c', {5, 6, 7});
 
         std::pmr::monotonic_buffer_resource mem_res {};
-        Data data(Send{}, mem_res, xs);
+        mppi::Data data(mppi::Send{}, mem_res, xs);
 
         std::array<X, 3> xs_copy;
         xs_copy[0] = X(' ', {0, 0});
@@ -576,7 +576,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         ys[2] = Y('c', {5, 6, 7}, 12.2);
 
         std::pmr::monotonic_buffer_resource mem_res {};
-        Data data(Send{}, mem_res, ys);
+        mppi::Data data(mppi::Send{}, mem_res, ys);
 
         std::array<Y, 3> ys_copy;
         ys_copy[0] = Y(' ', {0, 0, 0}, 0.0);
@@ -646,7 +646,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         ys[2] = Y(3.6, {'5', '6', '7'}, 123);
 
         std::pmr::monotonic_buffer_resource mem_res {};
-        Data data(Send{}, mem_res, ys);
+        mppi::Data data(mppi::Send{}, mem_res, ys);
 
         std::array<Y, 3> ys_copy;
         ys_copy[0] = Y(0.0, {' ', ' '}, 0);
@@ -729,7 +729,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         zs[2] = Z({30, 40, 50, 60, 70}, 5.6f, 123);
 
         std::pmr::monotonic_buffer_resource mem_res {};
-        Data data(Send{}, mem_res, zs);
+        mppi::Data data(mppi::Send{}, mem_res, zs);
 
         std::array<Z, 3> zs_copy;
         zs_copy[0] = Z({0, 0, 0}, 0.0f, 0);
@@ -853,7 +853,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
         xs[0] = Origin(0, 1, 2, '3', 4.0);
 
         std::pmr::monotonic_buffer_resource mem_res {};
-        Data data(Send{}, mem_res, xs);
+        mppi::Data data(mppi::Send{}, mem_res, xs);
 
         std::array<Origin, 1> xs_copy;
 
@@ -893,9 +893,9 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
 
         std::pmr::monotonic_buffer_resource mem_res {};
 
-        DataPattern<X, "_a", "_d"> data_pattern(xs);
+        mppi::DataPattern<X, "_a", "_d"> data_pattern(xs);
 
-        Data data(Send{}, mem_res, data_pattern, xs);
+        mppi::Data data(mppi::Send{}, mem_res, data_pattern, xs);
 
         std::array<X, 3> xs_copy;
         xs_copy[0] = X(' ', {0, 0});

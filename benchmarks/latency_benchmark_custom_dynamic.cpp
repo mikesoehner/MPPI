@@ -31,7 +31,7 @@ int main(int argc, char** argv)
 {
     MPI_Init(&argc, &argv);
 
-    Communicator comm;
+    mppi::Communicator comm;
 
     if(comm.get_size() != 2)
     {
@@ -74,7 +74,7 @@ int main(int argc, char** argv)
         std::vector<TestClass> recv_buf(nb_elements, TestClass(1, 2, 3.0, {4.0f, 5.6f, 7.8f}, {6.2f, 5.7f, 8.4f}, {1.2f, 2.3f, 3.4f}));
         
         // DataPattern is not dynamic because one of the requested members has a dynamic size
-        DataPattern<TestClass, "_a", "_b", "_d", "_f"> data_pattern(send_buf);
+        mppi::DataPattern<TestClass, "_a", "_b", "_d", "_f"> data_pattern(send_buf);
         //
         MPI_Barrier(MPI_COMM_WORLD);
 
@@ -87,16 +87,16 @@ int main(int argc, char** argv)
             {
                 double time_start = MPI_Wtime();
 
-                comm.send(1, Tag(1), data_pattern, send_buf);
-                comm.recv(1, Tag(1), data_pattern, recv_buf);
+                comm.send(1, mppi::Tag(1), data_pattern, send_buf);
+                comm.recv(1, mppi::Tag(1), data_pattern, recv_buf);
 
                 double time_end = MPI_Wtime();
                 time_total += time_end - time_start;
             }
             else if (comm.get_rank() == 1)
             {
-                comm.recv(0, Tag(1), data_pattern, recv_buf);
-                comm.send(0, Tag(1), data_pattern, send_buf);
+                comm.recv(0, mppi::Tag(1), data_pattern, recv_buf);
+                comm.send(0, mppi::Tag(1), data_pattern, send_buf);
             }
         }
 

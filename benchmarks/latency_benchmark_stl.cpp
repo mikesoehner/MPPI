@@ -7,7 +7,7 @@ int main(int argc, char** argv)
 {
     MPI_Init(&argc, &argv);
 
-    Communicator comm;
+    mppi::Communicator comm;
 
     if(comm.get_size() != 2)
     {
@@ -65,16 +65,16 @@ int main(int argc, char** argv)
                 {
                     double time_start = MPI_Wtime();
 
-                    comm.send(1, Tag(1), send_buf);
-                    comm.recv(1, Tag(1), recv_buf);
+                    comm.send(1, mppi::Tag(1), send_buf);
+                    comm.recv(1, mppi::Tag(1), recv_buf);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
                 }
                 else if (comm.get_rank() == 1)
                 {
-                    comm.recv(0, Tag(1), recv_buf);
-                    comm.send(0, Tag(1), send_buf);
+                    comm.recv(0, mppi::Tag(1), recv_buf);
+                    comm.send(0, mppi::Tag(1), send_buf);
                 }
             }
 
