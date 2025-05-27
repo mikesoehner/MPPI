@@ -1,27 +1,38 @@
 #include <iostream>
 #include "communicator.hpp"
 
-struct TestClass
+class Molecule
 {
 public:
-    TestClass() = default;
-    TestClass(int a, int b, double c, std::array<float, 3> d, std::array<float, 3> e, std::array<float, 3> f)
-        : _a(a), _b(b), _c(c), _d(d), _e(e), _f(f)
-    {}
+    Molecule() = default;
 
-    int& get_a() { return _a; }
-    int& get_b() { return _b; }
-    double& get_c() { return _c; }
-    std::array<float, 3>& get_d() { return _d; }
-    std::array<float, 3>& get_e() { return _e; }
-    std::array<float, 3>& get_f() { return _f; }
+    unsigned int _cid {};
+    std::array<double, 3> _r;
+    std::array<double, 3> _F;
+    std::array<double, 3> _v;
+    std::array<double, 3> _M;
+    std::array<double, 3> _L;
+    std::array<double, 3> _Vi;
+    std::array<double, 3> _I;
+    std::array<double, 3> _invI;
+    std::array<double, 4> _q;
+    unsigned long _id {};
+    double _m {};
+    unsigned _soa_index_lj {};
+    unsigned _soa_index_c {};
+    unsigned _soa_index_d {};
+    unsigned _soa_index_q {};
+};
 
-    int _a {};
-    int _b {};
-    double _c {};
-    std::array<float, 3> _d {};
-    std::array<float, 3> _e {};
-    std::array<float, 3> _f {};
+class SimpleClass
+{
+public:
+    SimpleClass() = default;
+
+    std::array<double, 2> _x;
+    double _y;
+    char _a;
+    int _n;
 };
 
 int main(int argc, char** argv)
@@ -43,40 +54,60 @@ int main(int argc, char** argv)
 
     MPI_Status reqstat;
 
-    // prepare custom mpi type
-    int B[] = {
-        1, // 1 int
-        1, // 1 int
-        3, // 3 float's
-        3 // 3 float's
+    // prepare custom mol type
+    int B_mol[] = { 1, 1, 1, 3, 4 };
+    MPI_Aint D_mol[] = {
+        offsetof(Molecule, _id),
+        offsetof(Molecule, _cid),
+        offsetof(Molecule, _cid),
+        offsetof(Molecule, _r),
+        offsetof(Molecule, _q)
     };
-    MPI_Aint D[] = {
-        offsetof(struct TestClass, _a),
-        offsetof(struct TestClass, _b),
-        offsetof(struct TestClass, _d),
-        offsetof(struct TestClass, _f),
-        sizeof(struct TestClass)
-    };
-    MPI_Datatype T[] = {
-        MPI_INT,
-        MPI_INT,
-        MPI_FLOAT,
-        MPI_FLOAT
+    MPI_Datatype T_mol[] = {
+        MPI_UNSIGNED_LONG,
+        MPI_UNSIGNED,
+        MPI_UNSIGNED,
+        MPI_DOUBLE,
+        MPI_DOUBLE
     };
 
-    MPI_Datatype mpi_dt_mystruct;
-    MPI_Type_create_struct(4, B, D, T, &mpi_dt_mystruct);
-    MPI_Type_commit(&mpi_dt_mystruct);
+    MPI_Datatype mpi_dt_mol;
+    MPI_Type_create_struct(5, B_mol, D_mol, T_mol, &mpi_dt_mol);
+    MPI_Type_commit(&mpi_dt_mol);
 
-    std::vector<MPI_Datatype> mpi_types;
-    mpi_types.emplace_back(mpi_dt_mystruct);
+    // prepare custom simple type
+    int B_simple[] = { 2, 1, 1 };
+    MPI_Aint D_simple[] = {
+        offsetof(SimpleClass, _x),
+        offsetof(SimpleClass, _y),
+        offsetof(SimpleClass, _n)
+    };
+    MPI_Datatype T_simple[] = {
+        MPI_DOUBLE,
+        MPI_DOUBLE,
+        MPI_INT
+    };
+
+    MPI_Datatype mpi_dt_simple_not_resized;
+    MPI_Datatype mpi_dt_simple;
+    MPI_Type_create_struct(3, B_simple, D_simple, T_simple, &mpi_dt_simple_not_resized);
+    MPI_Type_create_resized(mpi_dt_simple_not_resized, 0, sizeof(SimpleClass), &mpi_dt_simple);
+    MPI_Type_commit(&mpi_dt_simple);
+
+    std::vector<MPI_Datatype> mpi_types {mpi_dt_simple, mpi_dt_mol};
+
+    std::vector<size_t> original_sizes {sizeof(SimpleClass), sizeof(Molecule)};
 
     // loop through different datatypes that should be benchmarked
-    for (auto mpi_type : mpi_types)
+    for (size_t i = 0; i < mpi_types.size(); i++)
     {
+        auto mpi_type = mpi_types[i];
+
         int type_size {};
         MPI_Type_size(mpi_type, &type_size);
         size_t min_message_size = type_size;
+        // type_size = sizeof(MyClass);
+        // min_message_size = sizeof(MyClass);
         size_t max_message_size = 4'194'304 * 4;
 
         char type_name[128];
@@ -89,14 +120,14 @@ int main(int argc, char** argv)
             fprintf(stdout, "%*s", 20, "Avg Latency(us)\n");
         }
         
-            // loop through message sizes
+        // loop through message sizes
         for (size_t size = min_message_size; size <= max_message_size; size *= 2)
         {
             // get number of elements in message
             auto nb_elements = size / type_size;
             // init buffers
-            std::vector<TestClass> send_buf(nb_elements);
-            std::vector<TestClass> recv_buf(nb_elements);
+            std::vector<std::byte> send_buf(nb_elements * original_sizes[i]);
+            std::vector<std::byte> recv_buf(nb_elements * original_sizes[i]);
             //
             MPI_Barrier(MPI_COMM_WORLD);
 
