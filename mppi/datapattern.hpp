@@ -86,6 +86,8 @@ namespace mppi
         }
     
         constexpr auto get_size() const { return _size; }
+
+        using base_type = OriginalType;
     
     private:
     
