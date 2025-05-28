@@ -20,23 +20,6 @@
 
 namespace mppi
 {
-    // functions to transform standard types to MPI types
-    namespace Type2MPI {
-        MPI_Datatype transform(char) { return MPI_CHAR; }
-        MPI_Datatype transform(short) { return MPI_SHORT; }
-        MPI_Datatype transform(int) { return MPI_INT; }
-        MPI_Datatype transform(long) { return MPI_LONG; }
-        MPI_Datatype transform(long long) { return MPI_LONG_LONG; }
-        MPI_Datatype transform(unsigned char) { return MPI_UNSIGNED_CHAR; }
-        MPI_Datatype transform(unsigned short) { return MPI_UNSIGNED_SHORT; }
-        MPI_Datatype transform(unsigned int) { return MPI_UNSIGNED; }
-        MPI_Datatype transform(unsigned long) { return MPI_UNSIGNED_LONG; }
-        MPI_Datatype transform(unsigned long long) { return MPI_UNSIGNED_LONG_LONG; }
-        MPI_Datatype transform(float) { return MPI_FLOAT; }
-        MPI_Datatype transform(double) { return MPI_DOUBLE; }
-        MPI_Datatype transform(long double) { return MPI_LONG_DOUBLE; }
-    };
-
     struct Send{};
     struct Recv{};
 
@@ -172,8 +155,8 @@ namespace mppi
             fill_range(_buffer.begin(), ranges...);
         }
         
-        constexpr MPI_Datatype get_type() const { return Type2MPI::transform(BufferType{}); }
-        int get_count() const { return _buffer.size(); }
+        constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
+        int get_count() const { return _buffer.size() * sizeof(BufferType); }
         auto get_data() { return _buffer.data(); }
 
     private:
@@ -233,8 +216,8 @@ namespace mppi
                 copy_to_range(range);
         }
 
-        constexpr MPI_Datatype get_type() const { return Type2MPI::transform(BufferType{}); }
-        int get_count() const { return _buffer_size; }
+        constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
+        int get_count() const { return _buffer_size * sizeof(BufferType); }
         auto get_data() { return _buffer_ptr; }
 
     private:
