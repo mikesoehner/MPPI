@@ -25,7 +25,7 @@ int main(int argc, char** argv)
         auto type_size = sizeof(T);
         
         size_t min_message_size = type_size;
-        size_t max_message_size = 4'194'304;
+        size_t max_message_size = 4'194'304 * 4;
 
         if (comm.get_rank() == 0)
         {
@@ -57,7 +57,7 @@ int main(int argc, char** argv)
             MPI_Barrier(MPI_COMM_WORLD);
 
             double time_total = 0.0;
-            size_t nb_iterations = 10000;
+            size_t nb_iterations = 10'000;
 
             for (size_t iteration = 0; iteration < nb_iterations; iteration++)
             {
@@ -65,16 +65,16 @@ int main(int argc, char** argv)
                 {
                     double time_start = MPI_Wtime();
 
-                    comm.send(1, Tag(1), send_buf);
-                    comm.recv(1, Tag(1), recv_buf);
+                    comm.send(1, mppi::Tag(1), send_buf);
+                    comm.recv(1, mppi::Tag(1), recv_buf);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
                 }
                 else if (comm.get_rank() == 1)
                 {
-                    comm.recv(0, Tag(1), recv_buf);
-                    comm.send(0, Tag(1), send_buf);
+                    comm.recv(0, mppi::Tag(1), recv_buf);
+                    comm.send(0, mppi::Tag(1), send_buf);
                 }
             }
 

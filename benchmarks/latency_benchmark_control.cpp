@@ -57,7 +57,7 @@ int main(int argc, char** argv)
             MPI_Barrier(MPI_COMM_WORLD);
 
             double time_total = 0.0;
-            size_t nb_iterations = 10000;
+            size_t nb_iterations = 10'000;
 
             for (size_t iteration = 0; iteration < nb_iterations; iteration++)
             {

@@ -2,30 +2,39 @@
 #include <tuple>
 #include "communicator.hpp"
 
-class TestClass
+class Molecule
 {
 public:
-    TestClass() = default;
-    TestClass(int a, int b, double c, std::array<float, 3> d, std::array<float, 3> e, std::array<float, 3> f)
-        : _a(a), _b(b), _c(c), _d(d), _e(e), _f(f)
-    {}
+    Molecule() = default;
 
-    int& get_a() { return _a; }
-    int& get_b() { return _b; }
-    double& get_c() { return _c; }
-    std::array<float, 3>& get_d() { return _d; }
-    std::array<float, 3>& get_e() { return _e; }
-    std::array<float, 3>& get_f() { return _f; }
-
-private:
-    int _a {};
-    int _b {};
-    double _c {};
-    std::array<float, 3> _d {};
-    std::array<float, 3> _e {};
-    std::array<float, 3> _f {};
+    unsigned int _cid {};
+    std::array<double, 3> _r;
+    std::array<double, 3> _F;
+    std::array<double, 3> _v;
+    std::array<double, 3> _M;
+    std::array<double, 3> _L;
+    std::array<double, 3> _Vi;
+    std::array<double, 3> _I;
+    std::array<double, 3> _invI;
+    std::array<double, 4> _q;
+    unsigned long _id {};
+    double _m {};
+    unsigned _soa_index_lj {};
+    unsigned _soa_index_c {};
+    unsigned _soa_index_d {};
+    unsigned _soa_index_q {};
 };
 
+class SimpleClass
+{
+public:
+    SimpleClass() = default;
+
+    std::array<double, 2> _x;
+    double _y;
+    char _a;
+    int _n;
+};
 
 int main(int argc, char** argv)
 {
@@ -46,12 +55,12 @@ int main(int argc, char** argv)
 
     MPI_Status reqstat;
 
-    TestClass test;
-    mppi::DataPattern data_pattern(&test, test.get_a(), test.get_b(), test.get_d(), test.get_f());
+    SimpleClass simple;
+    mppi::DataPattern simple_pattern(&simple, simple._x, simple._y, simple._n);
+    Molecule mol;
+    mppi::DataPattern mol_pattern(&mol, mol._id, mol._cid, mol._r, mol._q);
 
-    std::tuple data_patterns {data_pattern};
-    std::vector<MPI_Datatype> mpi_types;
-    mpi_types.emplace_back(MPI_DATATYPE_NULL);
+    std::tuple data_patterns {simple_pattern, mol_pattern};
 
     constexpr auto size = std::tuple_size_v<decltype(data_patterns)>;
     
@@ -78,15 +87,14 @@ int main(int argc, char** argv)
             // get number of elements in message
             auto nb_elements = size / type_size;
             // init buffers
-            std::vector<TestClass> send_buf(nb_elements);
-            std::vector<TestClass> recv_buf(nb_elements);
-            // std::vector<char> send_buf(size);
-            // std::vector<char> recv_buf(size);
+            using VectorType = typename Pattern::base_type;
+            std::vector<VectorType> send_buf(nb_elements);
+            std::vector<VectorType> recv_buf(nb_elements);
             //
             MPI_Barrier(MPI_COMM_WORLD);
 
             double time_total = 0.0;
-            size_t nb_iterations = 10000;
+            size_t nb_iterations = 10'000;
 
             for (size_t iteration = 0; iteration < nb_iterations; iteration++)
             {
@@ -94,16 +102,16 @@ int main(int argc, char** argv)
                 {
                     double time_start = MPI_Wtime();
 
-                    comm.send(1, Tag(1), data_pattern, send_buf);
-                    comm.recv(1, Tag(1), data_pattern, recv_buf);
+                    comm.send(1, mppi::Tag(1), data_pattern, send_buf);
+                    comm.recv(1, mppi::Tag(1), data_pattern, recv_buf);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
                 }
                 else if (comm.get_rank() == 1)
                 {
-                    comm.recv(0, Tag(1), data_pattern, recv_buf);
-                    comm.send(0, Tag(1), data_pattern, send_buf);
+                    comm.recv(0, mppi::Tag(1), data_pattern, recv_buf);
+                    comm.send(0, mppi::Tag(1), data_pattern, send_buf);
                 }
             }
 
