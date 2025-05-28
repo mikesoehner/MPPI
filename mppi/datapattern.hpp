@@ -77,7 +77,7 @@ namespace mppi
         }
     
         auto get_size() const { return _size; }
-        using element_type = Origin;
+        using base_type = Origin;
     
     private:
     
