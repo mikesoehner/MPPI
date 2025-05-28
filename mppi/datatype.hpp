@@ -48,13 +48,13 @@ namespace mppi
             _buffer.resize(size_of_fundamentals<offset>(fundamentals...));
             // if we are sending data, we need to copy the args
             if constexpr ( std::is_same_v<SR, Send> )
-                fill_buffer<offset>(_buffer.data(), fundamentals...);
+                pack<offset>(_buffer.data(), fundamentals...);
         }
 
         void retrieve_data(Fs&... fundamentals)
         {
             constexpr size_t offset = 0;
-            fill_fundamentals<offset>(fundamentals...);
+            unpack<offset>(fundamentals...);
         }
 
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -87,7 +87,7 @@ namespace mppi
         // put values of variadic template into buffer of bytes
         // overload
         template<size_t offset, typename T>
-        constexpr void fill_buffer(std::byte* buffer, T const& head) 
+        constexpr void pack(std::byte* buffer, T const& head) 
         {
             // check if offset matches alignment of head
             constexpr auto mod = offset % alignof(T);
@@ -97,7 +97,7 @@ namespace mppi
         }
         // base case
         template<size_t offset, typename T, typename... Ts>
-        constexpr void fill_buffer(std::byte* buffer, T const& head, Ts const&... tail)
+        constexpr void pack(std::byte* buffer, T const& head, Ts const&... tail)
         {
             // check if offset matches alignment of head
             constexpr auto mod = offset % alignof(T);
@@ -105,12 +105,12 @@ namespace mppi
             
             std::memcpy(buffer + offset + adjust_for_alignment, &head, sizeof(T));
 
-            fill_buffer<offset + adjust_for_alignment + sizeof(T)>(buffer, tail...);
+            pack<offset + adjust_for_alignment + sizeof(T)>(buffer, tail...);
         }
 
 
         template<size_t offset, typename T>
-        constexpr void fill_fundamentals(T& head)
+        constexpr void unpack(T& head)
         {
             // check if offset matches alignment of head
             constexpr auto mod = offset % alignof(T);
@@ -119,7 +119,7 @@ namespace mppi
             std::memcpy(&head, _buffer.data() + offset + adjust_for_alignment, sizeof(T));
         }
         template<size_t offset, typename T, typename... Ts>
-        constexpr void fill_fundamentals(T& head, Ts&... tail)
+        constexpr void unpack(T& head, Ts&... tail)
         {
             // check if offset matches alignment of head
             constexpr auto mod = offset % alignof(T);
@@ -127,7 +127,7 @@ namespace mppi
             
             std::memcpy(&head, _buffer.data() + offset + adjust_for_alignment, sizeof(T));
 
-            fill_fundamentals<offset + adjust_for_alignment + sizeof(T)>(tail...);
+            unpack<offset + adjust_for_alignment + sizeof(T)>(tail...);
         }
 
         std::pmr::vector<std::byte> _buffer;
@@ -145,14 +145,14 @@ namespace mppi
             : _buffer{ &mem_res }
         {
             if constexpr ( std::is_same_v<SR, Send>)
-                (fill_buffer(_buffer, ranges), ...);
+                (pack(_buffer, ranges), ...);
             else
                 _buffer.resize(ranges_size(ranges...));
         }
 
         void retrieve_data(Rs&... ranges)
         {
-            fill_range(_buffer.begin(), ranges...);
+            unpack(_buffer.begin(), ranges...);
         }
         
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -165,14 +165,14 @@ namespace mppi
 
         // base case
         template<typename C, typename T>
-        constexpr void fill_buffer(C& container, T& head)
+        constexpr void pack(C& container, T& head)
         {
             std::ranges::copy(head, std::back_inserter(container));
         }
 
         // base case
         template<typename Iter, typename T>
-        constexpr void fill_range(Iter iter, T& head)
+        constexpr void unpack(Iter iter, T& head)
         {
             auto range_size = std::ranges::distance(head);
             auto iter_end = iter + range_size;
@@ -181,7 +181,7 @@ namespace mppi
         }
         // specialization case
         template<typename Iter, typename T, typename... Ts>
-        constexpr void fill_range(Iter iter, T& head, Ts&... tail)
+        constexpr void unpack(Iter iter, T& head, Ts&... tail)
         {
             auto range_size = std::ranges::distance(head);
             auto iter_end = iter + range_size;
@@ -189,7 +189,7 @@ namespace mppi
             std::ranges::copy(iter, iter_end, head.begin());
 
             iter = std::move(iter_end);
-            fill_range(iter, tail...);
+            unpack(iter, tail...);
         }
 
         std::pmr::vector<BufferType> _buffer;
@@ -252,14 +252,14 @@ namespace mppi
             {
                 // copy data
                 constexpr size_t offset = 0;
-                fill_pattern(data_pattern, offset, ranges...);
+                pack(data_pattern, offset, ranges...);
             }
         }
 
         void retrieve_data(DataPattern<Ts...> const& data_pattern, Rs&... ranges)
         {
             size_t offset = 0;
-            fill_buffer(data_pattern, offset, ranges...);
+            unpack(data_pattern, offset, ranges...);
         }
         
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -269,7 +269,7 @@ namespace mppi
     private:
         // base case
         template<typename Pattern, typename U>
-        constexpr void fill_pattern(Pattern const& pattern, size_t offset, U& range)
+        constexpr void pack(Pattern const& pattern, size_t offset, U& range)
         {
             // loop through range
             for (auto& element : range)
@@ -277,18 +277,18 @@ namespace mppi
         }
         // specialization case
         template<typename Pattern, typename U, typename... Us>
-        constexpr void fill_pattern(Pattern const& pattern, size_t offset, U& range, Us&... tail)
+        constexpr void pack(Pattern const& pattern, size_t offset, U& range, Us&... tail)
         {
             // loop through range
             for (auto& element : range)
                 offset = pattern.pack(_buffer.data(), &element, offset);
 
-            fill_pattern(pattern, offset, tail...);
+            pack(pattern, offset, tail...);
         }
 
         // base case
         template<typename Pattern, typename U>
-        constexpr void fill_buffer(Pattern const& pattern, size_t offset, U& range)
+        constexpr void unpack(Pattern const& pattern, size_t offset, U& range)
         {
             // loop through range
             for (auto& element : range)
@@ -296,13 +296,13 @@ namespace mppi
         }
         // specialization case
         template<typename Pattern, typename U, typename... Us>
-        constexpr void fill_buffer(Pattern const& pattern, size_t offset, U& range, Us&... tail)
+        constexpr void unpack(Pattern const& pattern, size_t offset, U& range, Us&... tail)
         {
             // loop through range
             for (auto& element : range)
                 offset = pattern.unpack(&element, _buffer.data(), offset);
 
-            fill_buffer(pattern, offset, tail...);
+            unpack(pattern, offset, tail...);
         }
 
 
