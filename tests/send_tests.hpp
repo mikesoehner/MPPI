@@ -10,7 +10,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
     std::vector<int> vec(10, 0);
     std::list<int> list(10, 0);
 
-    Communicator comm;
+    mppi::Communicator comm;
 
     SECTION("Sending multiple of the same fundamental type")
     {
@@ -19,11 +19,11 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         if (comm.get_rank() == 0)
         {
             a = 4, b = 5, c = 78;
-            comm.send(1, Tag(0), a, b, c);
+            comm.send(1, mppi::Tag(0), a, b, c);
         }
         else
         {
-            comm.recv(0, Tag(0), a, b, c);
+            comm.recv(0, mppi::Tag(0), a, b, c);
 
             REQUIRE(a == 4);
             REQUIRE(b == 5);
@@ -40,11 +40,11 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         if (comm.get_rank() == 0)
         {
             a = 4, b = 5, c = 78.0f;
-            comm.send(1, Tag(0), a, b, c);
+            comm.send(1, mppi::Tag(0), a, b, c);
         }
         else
         {
-            comm.recv(0, Tag(0), a, b, c);
+            comm.recv(0, mppi::Tag(0), a, b, c);
 
             REQUIRE(a == 4);
             REQUIRE(b == 5);
@@ -57,13 +57,13 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         if (comm.get_rank() == 0)
         {
             std::iota(vec.begin(), vec.end(), 0);
-            comm.send(1, Tag(0), vec);
+            comm.send(1, mppi::Tag(0), vec);
 
             REQUIRE(vec == std::vector<int> {0,1,2,3,4,5,6,7,8,9});
         }
         else
         {
-            comm.recv(0, Tag(0), vec);
+            comm.recv(0, mppi::Tag(0), vec);
 
             REQUIRE(vec == std::vector<int> {0,1,2,3,4,5,6,7,8,9});
         }
@@ -74,13 +74,13 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         if (comm.get_rank() == 0)
         {
             std::iota(vec.begin(), vec.end(), 0);
-            comm.send(1, Tag(0), vec | std::ranges::views::take(3));
+            comm.send(1, mppi::Tag(0), vec | std::ranges::views::take(3));
 
             REQUIRE(vec == std::vector<int> {0,1,2,3,4,5,6,7,8,9});
         }
         else
         {
-            comm.recv(0, Tag(0), vec | std::ranges::views::take(3));
+            comm.recv(0, mppi::Tag(0), vec | std::ranges::views::take(3));
 
             REQUIRE(vec == std::vector<int> {0,1,2,0,0,0,0,0,0,0});
         }
@@ -91,13 +91,13 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         if (comm.get_rank() == 0)
         {
             std::iota(vec.begin(), vec.end(), 0);
-            comm.send(1, Tag(0), vec | std::ranges::views::take(3), vec | std::ranges::views::drop(7));
+            comm.send(1, mppi::Tag(0), vec | std::ranges::views::take(3), vec | std::ranges::views::drop(7));
 
             REQUIRE(vec == std::vector<int> {0,1,2,3,4,5,6,7,8,9});
         }
         else
         {
-            comm.recv(0, Tag(0), vec | std::ranges::views::take(3), vec | std::ranges::views::drop(7));
+            comm.recv(0, mppi::Tag(0), vec | std::ranges::views::take(3), vec | std::ranges::views::drop(7));
 
             REQUIRE(vec == std::vector<int> {0,1,2,0,0,0,0,7,8,9});
         }
@@ -108,11 +108,11 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         if (comm.get_rank() == 0)
         {
             std::iota(list.begin(), list.end(), 0);
-            comm.send(1, Tag(0), list);
+            comm.send(1, mppi::Tag(0), list);
         }
         else
         {
-            comm.recv(0, Tag(0), list);
+            comm.recv(0, mppi::Tag(0), list);
             
             auto iter = list.begin();
             REQUIRE(*iter++ == 0);
@@ -133,11 +133,11 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         if (comm.get_rank() == 0)
         {
             std::iota(list.begin(), list.end(), 0);
-            comm.send(1, Tag(0), list | std::ranges::views::take(5));
+            comm.send(1, mppi::Tag(0), list | std::ranges::views::take(5));
         }
         else
         {
-            comm.recv(0, Tag(0), list | std::ranges::views::take(5));
+            comm.recv(0, mppi::Tag(0), list | std::ranges::views::take(5));
 
             auto iter = list.begin();
             REQUIRE(*iter++ == 0);
@@ -158,11 +158,11 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         if (comm.get_rank() == 0)
         {
             std::iota(list.begin(), list.end(), 0);
-            comm.send(1, Tag(0), list | std::ranges::views::take(3), list | std::ranges::views::drop(7));
+            comm.send(1, mppi::Tag(0), list | std::ranges::views::take(3), list | std::ranges::views::drop(7));
         }
         else
         {
-            comm.recv(0, Tag(0), list | std::ranges::views::take(3), list | std::ranges::views::drop(7));
+            comm.recv(0, mppi::Tag(0), list | std::ranges::views::take(3), list | std::ranges::views::drop(7));
 
             auto iter = list.begin();
             REQUIRE(*iter++ == 0);
@@ -201,7 +201,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         };
 
         TestClass testpattern;
-        DataPattern data_pattern(&testpattern, testpattern.get_a(), testpattern.get_d());
+        mppi::DataPattern data_pattern(&testpattern, testpattern.get_a(), testpattern.get_d());
 
         std::vector<TestClass> tests_vec;
         
@@ -212,13 +212,13 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec.emplace_back(TestClass(3, 4, 5.0, {6.0f, 7.0f, 8.0f}));
             tests_vec.emplace_back(TestClass(4, 5, 6.0, {7.0f, 8.0f, 9.0f}));
 
-            comm.send(1, Tag(0), data_pattern, tests_vec);
+            comm.send(1, mppi::Tag(0), data_pattern, tests_vec);
         }
         else
         {
             tests_vec.resize(4);
 
-            comm.recv(0, Tag(0), data_pattern, tests_vec);
+            comm.recv(0, mppi::Tag(0), data_pattern, tests_vec);
 
             REQUIRE(tests_vec[0].get_a() == 1);
             REQUIRE(tests_vec[1].get_a() == 2);
@@ -260,7 +260,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         };
 
         TestClass testpattern;
-        DataPattern data_pattern(&testpattern, testpattern.get_a(), testpattern.get_b(), testpattern.get_d());
+        mppi::DataPattern data_pattern(&testpattern, testpattern.get_a(), testpattern.get_b(), testpattern.get_d());
 
         std::vector<TestClass> tests_vec;
         
@@ -271,13 +271,13 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec.emplace_back(TestClass({6.0, 7.0}, 4.0, 'y', 5));
             tests_vec.emplace_back(TestClass({7.0, 8.0}, 5.0, 'z', 6));
 
-            comm.send(1, Tag(0), data_pattern, tests_vec | std::ranges::views::all);
+            comm.send(1, mppi::Tag(0), data_pattern, tests_vec | std::ranges::views::all);
         }
         else
         {
             tests_vec.resize(4);
 
-            comm.recv(0, Tag(0), data_pattern, tests_vec | std::ranges::views::all);
+            comm.recv(0, mppi::Tag(0), data_pattern, tests_vec | std::ranges::views::all);
 
             REQUIRE(std::abs(tests_vec[0].get_a()[0] - 4.0) < 0.00001);
             REQUIRE(std::abs(tests_vec[1].get_a()[0] - 5.0) < 0.00001);

@@ -30,7 +30,7 @@ TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
     {
         Test test(1, 2, 3.0, {4.0f, 5.0f, 6.0f});
 
-        DataPattern data_pattern(&test, test.get_a(), test.get_c());
+        mppi::DataPattern data_pattern(&test, test.get_a(), test.get_c());
 
         struct Destination
         {
@@ -57,11 +57,11 @@ TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
         tests.emplace_back(Test(4, 5, 6.0, {7.0f, 8.0f, 9.0f}));
 
         Test test;
-        DataPattern data_pattern(&test, test.get_a(), test.get_c(), test.get_d());
+        mppi::DataPattern data_pattern(&test, test.get_a(), test.get_c(), test.get_d());
 
         std::pmr::monotonic_buffer_resource mem_res {};
         auto view = tests | std::ranges::views::all;
-        Data data(Send{}, mem_res, data_pattern, tests);
+        mppi::Data data(mppi::Send{}, mem_res, data_pattern, tests);
 
         // reset original vector
         tests[0] = Test{};

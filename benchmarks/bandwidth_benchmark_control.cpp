@@ -5,7 +5,7 @@ int main(int argc, char** argv)
 {
     MPI_Init(&argc, &argv);
 
-    Communicator comm;
+    mppi::Communicator comm;
 
     if(comm.get_size() != 2)
     {

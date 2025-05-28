@@ -31,7 +31,7 @@ int main(int argc, char** argv)
 {
     MPI_Init(&argc, &argv);
 
-    Communicator comm;
+    mppi::Communicator comm;
 
     if(comm.get_size() != 2)
     {
@@ -47,7 +47,7 @@ int main(int argc, char** argv)
     MPI_Status reqstat;
 
     TestClass test;
-    DataPattern data_pattern(&test, test.get_a(), test.get_b(), test.get_d(), test.get_f());
+    mppi::DataPattern data_pattern(&test, test.get_a(), test.get_b(), test.get_d(), test.get_f());
 
     std::tuple data_patterns {data_pattern};
     std::vector<MPI_Datatype> mpi_types;
