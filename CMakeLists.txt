@@ -10,10 +10,14 @@ project(mppi
 
 find_package(MPI REQUIRED)
 
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
 add_library(mppi INTERFACE)
 target_include_directories(mppi
     INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}/mppi)
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/mppi>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 add_library(mppi::mppi ALIAS mppi)
 target_link_libraries(mppi INTERFACE MPI::MPI_CXX)
@@ -31,3 +35,19 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 add_subdirectory(benchmarks)
+
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/mppiConfig.cmake DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/mppi)
+
+install(DIRECTORY mppi DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+install(TARGETS mppi EXPORT mppiTargets)
+
+export(EXPORT mppiTargets
+    NAMESPACE mppi::
+    FILE mppiTargets.cmake)
+
+install(EXPORT mppiTargets
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/mppi
+    NAMESPACE mppi::
+    FILE mppiTargets.cmake)
