@@ -126,7 +126,7 @@ namespace mppi
     {
     public:
         Communicator(MPI_Comm mpi_comm = MPI_COMM_WORLD)
-           : _mpi_comm(mpi_comm), _buffer{/*&_mpi_allocator*/}, _pool{std::pmr::pool_options{1, 1024*1024*1024}, &_buffer}
+           : _mpi_comm(mpi_comm), _buffer{&_mpi_allocator}, _pool{std::pmr::pool_options{1, 1024*1024*1024}, &_buffer}
         {
             MPI_Comm_rank(_mpi_comm, &_rank);
             MPI_Comm_size(_mpi_comm, &_size);
