@@ -64,13 +64,13 @@ namespace mppi
             fill_displs_buffer<0>(origin, members...);
         }
     
-        size_t pack(std::byte* dest, Origin* base, size_t offset) const
+        size_t pack(std::byte* dest, Origin const* base, size_t offset) const
         {
             constexpr size_t alignment = 0;
-            return copy<alignment, 0, true>(dest, reinterpret_cast<std::byte*>(base), offset, Members{}...);
+            return copy<alignment, 0, true>(dest, reinterpret_cast<std::byte const*>(base), offset, Members{}...);
         }
     
-        size_t unpack(Origin* base, std::byte* src, size_t offset) const
+        size_t unpack(Origin* base, std::byte const* src, size_t offset) const
         {
             constexpr size_t alignment = 0;
             return copy<alignment, 0, false>(reinterpret_cast<std::byte*>(base), src, offset, Members{}...);
@@ -97,7 +97,7 @@ namespace mppi
         }
     
         template<size_t Alignment, int I, bool Pack, typename T>
-        constexpr size_t copy(std::byte* dest, std::byte* src, size_t offset, T const& head) const
+        constexpr size_t copy(std::byte* dest, std::byte const* src, size_t offset, T const& head) const
         {
             // check if offset matches alignment of head
             constexpr auto mod = Alignment % alignof(T);
@@ -114,7 +114,7 @@ namespace mppi
         }
         
         template<size_t Alignment, int I, bool Pack, typename T, typename... Ts>
-        constexpr size_t copy(std::byte* dest, std::byte* src, size_t offset, T const& head, Ts const&... tail) const
+        constexpr size_t copy(std::byte* dest, std::byte const* src, size_t offset, T const& head, Ts const&... tail) const
         {
             // check if offset matches alignment of head
             constexpr auto mod = Alignment % alignof(T);
