@@ -61,6 +61,65 @@ namespace mppi
             return this == &other;
         }
     };
+
+
+    class Request
+    {
+    public:
+        Request() = default;
+
+        template<is_send_or_recv SR, typename D, are_input_ranges... Ranges>
+        Request(SR, D data, MPI_Request request, Ranges&... ranges)
+            : _mpi_request(request)
+        {
+            // if it is a recv request, we have to get the data back
+            if constexpr (std::is_same_v<SR, Recv>)
+            {
+                auto data_ptr = std::make_shared<D>(std::move(data));
+                auto tuple_ptr = std::make_shared<std::tuple<Ranges...>>(std::make_tuple(ranges...));
+
+                _retrieve_data = [data_ptr = std::move(data_ptr), tuple_ptr = std::move(tuple_ptr)]
+                {
+                    std::apply([&](auto &&... args) { data_ptr->retrieve_data(args...); }, *tuple_ptr);
+                };
+            }
+            else
+            {
+                _retrieve_data = [](){};
+            }        
+        }
+
+        template<is_send_or_recv SR, typename D, typename... Ts, are_input_ranges... Ranges>
+        Request(SR, D data, MPI_Request request, DataPattern<Ts...> data_pattern, Ranges&... ranges)
+            : _mpi_request(request)
+        {
+            // if it is a recv request, we have to get the data back
+            if constexpr (std::is_same_v<SR, Recv>)
+            {
+                auto data_ptr = std::make_shared<D>(std::move(data));
+                auto tuple_ptr = std::make_shared<std::tuple<Ranges...>>(std::make_tuple(ranges...));
+                auto pattern_ptr = std::make_shared<DataPattern<Ts...>>(std::move(data_pattern));
+
+                _retrieve_data = [data_ptr = std::move(data_ptr), tuple_ptr = std::move(tuple_ptr), pattern_ptr = std::move(pattern_ptr)]
+                {
+                    std::apply([&](auto &&... args) { data_ptr->retrieve_data(*pattern_ptr, args...); }, *tuple_ptr);
+                };
+            }
+            else
+            {
+                _retrieve_data = [](){};
+            }        
+        }
+
+        auto& get() { return _mpi_request; }
+        auto retrieve_data() { _retrieve_data(); }
+
+    private:
+        MPI_Request _mpi_request {};
+        std::function<void()> _retrieve_data;
+    };
+
+
     
     
     class Communicator
@@ -147,6 +206,153 @@ namespace mppi
     
             data.retrieve_data(data_pattern , views...);
         }
+
+        template<typename... Ts>
+            requires are_fundamentals<Ts...>  || are_only_ranges<Ts...>
+        auto isend(int destination, Tag tag, Ts&... ranges)
+        {
+            // we first need to create the Data object
+            // then we can link the buffer of Data to the MPI function
+            // afterwards we create the Request object and return it
+            // this way we trigger the guaranteed copy elision, 
+            // because the Request object is not used in this function
+            MPI_Request mpi_request;
+            Data data(Send{}, _pool, ranges...);
+
+            MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm, &mpi_request);
+
+            return Request(Send{}, std::move(data), std::move(mpi_request), ranges...);
+        }
+
+        template<are_only_views... Vs>
+        auto isend(int destination, Tag tag, Vs... views)
+        {
+            MPI_Request mpi_request;
+            Data data(Send{}, _pool, views...);
+
+            MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm, &mpi_request);
+
+            return Request(Send{}, std::move(data), std::move(mpi_request), views...);
+        }
+
+        template<typename... Ts, typename... Rs>
+            requires are_fundamentals<Rs...>  || are_only_ranges<Rs...>
+        auto isend(int destination, Tag tag, DataPattern<Ts...> const& data_pattern, Rs&... ranges)
+        {
+            MPI_Request mpi_request;
+            Data data(Send{}, _pool, data_pattern, ranges...);
+
+            MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm, &mpi_request);
+
+            return Request(Send{}, std::move(data), std::move(mpi_request), std::move(data_pattern), ranges...);
+        }
+
+        template<typename... Ts, are_only_views... Vs>
+        auto isend(int destination, Tag tag, DataPattern<Ts...> const& data_pattern, Vs... views)
+        {
+            MPI_Request mpi_request;
+            Data data(Send{}, _pool, data_pattern, views...);
+
+            MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination, tag.get(), _mpi_comm, &mpi_request);
+
+            return Request(Send{}, std::move(data), std::move(mpi_request), std::move(data_pattern), views...);
+        }
+
+        template<typename... Ts>
+            requires are_fundamentals<Ts...> || are_only_ranges<Ts...>
+        auto irecv(int source, Tag tag, Ts&... ranges)
+        {
+            // we first need to create the Data object
+            // then we can link the buffer of Data to the MPI function
+            // afterwards we create the Request object and return it
+            // this way we trigger the guaranteed copy elision, 
+            // because the Request object is not used in this function
+            MPI_Request mpi_request;
+            Data data(Recv{}, _pool, ranges...);
+
+            MPI_Irecv(data.get_data(), data.get_count(), data.get_type(), source, tag.get(), _mpi_comm, &mpi_request);
+
+            return Request(Recv{}, std::move(data), std::move(mpi_request), ranges...);
+        }
+
+        template<are_only_views... Vs>
+        auto irecv(int source, Tag tag, Vs... views)
+        {
+            MPI_Request mpi_request;
+            Data data(Recv{}, _pool, views...);
+
+            MPI_Irecv(data.get_data(), data.get_count(), data.get_type(), source, tag.get(), _mpi_comm, &mpi_request);
+
+            return Request(Recv{}, std::move(data), std::move(mpi_request), views...);
+        }
+
+        template<typename... Ts, typename... Rs>
+            requires are_fundamentals<Rs...> || are_only_ranges<Rs...>
+        auto irecv(int source, Tag tag, DataPattern<Ts...> const& data_pattern, Rs&... ranges)
+        {
+            MPI_Request mpi_request;
+            Data data(Recv{}, _pool, data_pattern, ranges...);
+
+            MPI_Irecv(data.get_data(), data.get_count(), data.get_type(), source, tag.get(), _mpi_comm, &mpi_request);
+
+            return Request(Recv{}, std::move(data), std::move(mpi_request), std::move(data_pattern), ranges...);
+        }
+
+        template<typename... Ts, are_only_views... Vs>
+        auto irecv(int source, Tag tag, DataPattern<Ts...> const& data_pattern, Vs... views)
+        {
+            MPI_Request mpi_request;
+            Data data(Recv{}, _pool, data_pattern, views...);
+
+            MPI_Irecv(data.get_data(), data.get_count(), data.get_type(), source, tag.get(), _mpi_comm, &mpi_request);
+
+            return Request(Recv{}, std::move(data), std::move(mpi_request), std::move(data_pattern), views...);
+        }
+
+        auto wait(Request& request)
+        {
+            MPI_Wait(&request.get(), MPI_STATUS_IGNORE);
+            request.retrieve_data();
+        }
+
+        // template<typename C>
+        // auto waitall(C& requests)
+        // {
+        //     std::vector<bool> completed(requests.size(), false);
+        //     bool done = false; 
+
+        //     while (!done)
+        //     {
+        //         done = true;
+
+        //         for (size_t i = 0; i < requests.size(); i++)
+        //         {
+        //             if (completed[i])
+        //                 continue;
+    
+        //             int test;
+        //             MPI_Test(&requests[i].get(), &test, MPI_STATUS_IGNORE);
+                    
+        //             if (test)
+        //             {
+        //                 completed[i] = true;
+        //                 requests[i].retrieve_data();
+        //             }
+        //             else
+        //                 done = false;
+        //         }
+        //     }
+        // }
+        template<typename C>
+        auto waitall(C& requests)
+        {
+            for (auto& request : requests)
+            {
+                MPI_Wait(&request.get(), MPI_STATUS_IGNORE);
+                request.retrieve_data();
+            }
+        }
+
 
     private:
         // stores MPI container
