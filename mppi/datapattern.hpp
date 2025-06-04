@@ -22,20 +22,13 @@ namespace mppi
         // This constructor takes the StringLiterals as arguments
         consteval DataPattern()
             requires has_only_trivially_copyable_types<OriginalType, Identifiers...> && is_without_pointers<OriginalType, Identifiers...>
-            : _size(calc_packed_size<OriginalType, Identifiers...>()),
-            _sizes(get_sizes<OriginalType, Identifiers...>()),
-            _offset_type(get_offsets<OriginalType, Identifiers...>()),
-            _offset_buffer(calc_offsets_in_buffer<OriginalType, Identifiers...>())
+            : _size(calc_packed_size<OriginalType, Identifiers...>())
         {}
     
         // This constructor takes predetermined arrays and works on them
-        template<size_t N>
-        consteval DataPattern(size_t size, std::array<size_t, N> sizes, std::array<size_t, N> offset_type, std::array<size_t, N> offset_buffer)
+        consteval DataPattern(size_t size)
             requires has_only_trivially_copyable_types<OriginalType> && is_without_pointers<OriginalType, Identifiers...>
-            : _size(size),
-            _sizes(sizes),
-            _offset_type(offset_type),
-            _offset_buffer(offset_buffer)
+            : _size(size)
         {}
         
         // Run-time evaluated constructors
@@ -43,27 +36,20 @@ namespace mppi
         template<are_input_ranges... Rs>
         DataPattern(Rs... ranges)
             requires (!has_only_trivially_copyable_types<OriginalType, Identifiers...>) && is_without_pointers<OriginalType, Identifiers...>
-            : _size(calc_packed_size_with_container_identifier<OriginalType, Identifiers...>(ranges...)),
-            _sizes(get_sizes<OriginalType, Identifiers...>()),
-            _offset_type(get_offsets<OriginalType, Identifiers...>()),
-            _offset_buffer(calc_offsets_in_buffer<OriginalType, Identifiers...>())
+            : _size(calc_packed_size_with_container_identifier<OriginalType, Identifiers...>(ranges...))
         {}
     
         // This constructor takes predetermined arrays and works on them
-        template<size_t N>
-        DataPattern(size_t size, std::array<size_t, N> sizes, std::array<size_t, N> offset_type, std::array<size_t, N> offset_buffer)
+        DataPattern(size_t size)
             requires (!has_only_trivially_copyable_types<OriginalType>) && is_without_pointers<OriginalType, Identifiers...>
-            : _size(size),
-            _sizes(sizes),
-            _offset_type(offset_type),
-            _offset_buffer(offset_buffer)
+            : _size(size)
         {}
     
         size_t pack(std::byte* dest, OriginalType const* base, size_t offset) const
         {
             constexpr auto N = sizeof...(Identifiers);
             constexpr auto Indices = std::make_index_sequence<N>{};
-    
+
             // Target Members are compile-time resolvable
             if constexpr (has_only_trivially_copyable_types<OriginalType, Identifiers...>)
                 return copy<true>(dest, reinterpret_cast<std::byte const*>(base), offset, Indices);
@@ -71,8 +57,8 @@ namespace mppi
             else
                 return copy_dynamic<true>(dest, reinterpret_cast<std::byte const*>(base), offset, Indices);
         }
-    
-        size_t unpack(OriginalType* base, std::byte* src, size_t offset) const
+
+        size_t unpack(OriginalType* base, std::byte const* src, size_t offset) const
         {
             constexpr auto N = sizeof...(Identifiers);
             constexpr auto Indices = std::make_index_sequence<N>{};
@@ -94,10 +80,14 @@ namespace mppi
         template<bool Pack, size_t... Indices>
         constexpr size_t copy(std::byte* dest, std::byte const* src, size_t offset, std::index_sequence<Indices...>) const
         {
+            constexpr auto offset_buffer = calc_offsets_in_buffer<OriginalType, Identifiers...>();
+            constexpr auto offset_type = get_offsets<OriginalType, Identifiers...>();
+            constexpr auto sizes = get_sizes<OriginalType, Identifiers...>();
+
             if constexpr (Pack)
-                ((std::memcpy(dest + offset + _offset_buffer[Indices], src + _offset_type[Indices], _sizes[Indices])), ...);
+                ((std::memcpy(dest + offset + offset_buffer[Indices], src + offset_type[Indices], sizes[Indices])), ...);
             else
-                ((std::memcpy(dest + _offset_type[Indices], src + offset + _offset_buffer[Indices], _sizes[Indices])), ...);
+                ((std::memcpy(dest + offset_type[Indices], src + offset + offset_buffer[Indices], sizes[Indices])), ...);
     
             return offset + _size;
         }
@@ -106,6 +96,8 @@ namespace mppi
         template<bool Pack, size_t Index>
         auto copy_dynamic_impl(std::byte* dest, std::byte const* src, size_t& offset) const
         {
+            constexpr auto offset_type = get_offsets<OriginalType, Identifiers...>();
+            constexpr auto sizes = get_sizes<OriginalType, Identifiers...>();
             constexpr auto types = get_types<OriginalType, Identifiers...>();
     
             using T = typename [: types[Index] :];
@@ -120,7 +112,7 @@ namespace mppi
                 // we have to do code duplication here because of weird ternary operator behaviour
                 if constexpr (Pack)
                 { 
-                    auto container_ptr = reinterpret_cast<T const*>(src + _offset_type[Index]);
+                    auto container_ptr = reinterpret_cast<T const*>(src + offset_type[Index]);
                     
                     auto size = container_ptr->size();
                     auto begin = container_ptr->begin();
@@ -138,7 +130,7 @@ namespace mppi
                 }
                 else
                 {
-                    auto container_ptr = reinterpret_cast<T*>(dest + _offset_type[Index]);
+                    auto container_ptr = reinterpret_cast<T*>(dest + offset_type[Index]);
                     
                     auto size = container_ptr->size();
                     auto begin = container_ptr->begin();
@@ -164,11 +156,11 @@ namespace mppi
                 offset += adjust_for_alignment;
     
                 if constexpr (Pack)
-                    std::memcpy(dest + offset, src + _offset_type[Index], _sizes[Index]);
+                    std::memcpy(dest + offset, src + offset_type[Index], sizes[Index]);
                 else
-                    std::memcpy(dest + _offset_type[Index], src + offset, _sizes[Index]);
+                    std::memcpy(dest + offset_type[Index], src + offset, sizes[Index]);
     
-                offset += _sizes[Index];
+                offset += sizes[Index];
             }
     
             return offset;
@@ -187,9 +179,6 @@ namespace mppi
         // If all types are trivialy copyable, _size is the size of one instance serialized
         // If there is at least one allocator aware container, _size is the size of the entire range (because it is possible that one instance has a different size)
         const size_t _size {0};
-        const std::array<size_t, sizeof...(Identifiers)> _sizes;
-        const std::array<size_t, sizeof...(Identifiers)> _offset_type;
-        const std::array<size_t, sizeof...(Identifiers)> _offset_buffer;
     };
 };
 

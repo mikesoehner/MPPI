@@ -219,18 +219,15 @@ namespace mppi
             // we want to create a datatype that gets all the members of a type and it's bases
             constexpr auto N = get_total_nb_members<BufferType>();
             constexpr auto indices = std::make_index_sequence<N>{};
-            constexpr auto sizes = get_sizes<BufferType>();
-            constexpr auto offset_type = get_offsets<BufferType>();
-            constexpr auto offset_buffer = calc_offsets_in_buffer<BufferType>();
 
-            auto lambda = [&, sizes, offset_type, offset_buffer]<size_t... Indices>(auto type, std::index_sequence<Indices...>)
+            auto lambda = [&]<size_t... Indices>(auto type, std::index_sequence<Indices...>)
             {
                 using T = decltype(type);
 
                 if constexpr (has_only_trivially_copyable_types<T>)
-                    return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size<T>(), sizes, offset_type, offset_buffer);
+                    return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size<T>());
                 else
-                    return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size_with_container<T>(ranges...), sizes, offset_type, offset_buffer);
+                    return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size_with_container<T>(ranges...));
             };
 
             auto data_pattern = lambda(BufferType{}, indices);
@@ -253,18 +250,15 @@ namespace mppi
         {
             constexpr auto N = get_total_nb_members<BufferType>();
             constexpr auto indices = std::make_index_sequence<N>{};
-            constexpr auto sizes = get_sizes<BufferType>();
-            constexpr auto offset_type = get_offsets<BufferType>();
-            constexpr auto offset_buffer = calc_offsets_in_buffer<BufferType>();
 
-            auto lambda = [&, sizes, offset_type, offset_buffer]<size_t... Indices>(auto type, std::index_sequence<Indices...>)
+            auto lambda = [&]<size_t... Indices>(auto type, std::index_sequence<Indices...>)
             {
                 using T = decltype(type);
 
                 if constexpr (has_only_trivially_copyable_types<T>)
-                    return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size<T>(), sizes, offset_type, offset_buffer);
+                    return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size<T>());
                 else
-                    return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size_with_container<T>(ranges...), sizes, offset_type, offset_buffer);
+                    return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size_with_container<T>(ranges...));
             };
 
             auto data_pattern = lambda(BufferType{}, indices);
