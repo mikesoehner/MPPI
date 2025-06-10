@@ -157,17 +157,20 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
     {
         if (comm.get_rank() == 0)
         {
+            std::iota(vec.begin(), vec.end(), 0);
             std::iota(list.begin(), list.end(), 0);
-            comm.send(1, mppi::Tag(0), list | std::ranges::views::take(3), list | std::ranges::views::drop(7));
+            comm.send(1, mppi::Tag(0), vec | std::ranges::views::take(3), list | std::ranges::views::drop(7));
         }
         else
         {
-            comm.recv(0, mppi::Tag(0), list | std::ranges::views::take(3), list | std::ranges::views::drop(7));
+            comm.recv(0, mppi::Tag(0), vec | std::ranges::views::take(3), list | std::ranges::views::drop(7));
+
+            REQUIRE(vec == std::vector<int> {0,1,2,0,0,0,0,0,0,0});
 
             auto iter = list.begin();
             REQUIRE(*iter++ == 0);
-            REQUIRE(*iter++ == 1);
-            REQUIRE(*iter++ == 2);
+            REQUIRE(*iter++ == 0);
+            REQUIRE(*iter++ == 0);
             REQUIRE(*iter++ == 0);
             REQUIRE(*iter++ == 0);
             REQUIRE(*iter++ == 0);
