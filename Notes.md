@@ -2,7 +2,7 @@
 
 1. Make sure the compiler optimizes the serialization of datatype members to the vector of bytes.
     1. Make sure everything is as much compile-time optimized as possible (maybe rewrite functions f.e. make mod calculations constexpr).
-    2. Is the array of displacements in the DataPattern class resolved at compile-time? Maybe another construct would be more fitting. In theory all the information is there at compile-time.
+    2. Is the array of displacements in the Pattern class resolved at compile-time? Maybe another construct would be more fitting. In theory all the information is there at compile-time.
 2. Consider the overlapping the sending and splitting of large messages.
     1. Find out OpenMPIs thresholds for that
     2. Change of interface is probably necessary (currently data is packed completed until the communicator does something with it).
@@ -22,4 +22,4 @@
 13. Check for max bandwidth of 1 core (with stream?). How much of that do we get?
 14. Compile-time send size feature?
 15. (CUDA/HIP/)OpenMP device support?
-16. Implement reflection datapattern with experimental clang compiler.
+16. Implement reflection pattern with experimental clang compiler.

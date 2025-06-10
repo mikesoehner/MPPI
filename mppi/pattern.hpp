@@ -50,10 +50,10 @@ namespace mppi
     
     
     template<typename Origin, typename... Members>
-    class DataPattern
+    class Pattern
     {
     public:
-        DataPattern(Origin* origin, Members&... members)
+        Pattern(Origin* origin, Members&... members)
         {
             // determine size of one packed element
             constexpr size_t offset = 0;

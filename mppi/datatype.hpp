@@ -13,7 +13,7 @@
 
 #include "parameter_pack_helpers.hpp"
 #include "custom_concepts.hpp"
-#include "datapattern.hpp"
+#include "pattern.hpp"
 
 #include "mpi.h"
 
@@ -236,30 +236,30 @@ namespace mppi
     };
 
 
-    /* ------------------------------ Specialization: ranges with DataPattern ------------------------------ */
+    /* ------------------------------ Specialization: ranges with Pattern ------------------------------ */
     template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, typename... Ts, are_input_ranges... Rs> 
-    class Data<SR, MemRes, DataPattern<Ts...>, Rs...>
+    class Data<SR, MemRes, Pattern<Ts...>, Rs...>
     {
     public:
         // constructor that fills the internal _buffer
-        Data(SR, MemRes& mem_res, DataPattern<Ts...> const& data_pattern, Rs&... ranges)
+        Data(SR, MemRes& mem_res, Pattern<Ts...> const& pattern, Rs&... ranges)
             : _buffer{ &mem_res }
         {
             // resize _buffer
-            _buffer.resize(ranges_size(ranges...) * data_pattern.get_size());
+            _buffer.resize(ranges_size(ranges...) * pattern.get_size());
             // check if we want to send and have to copy the data
             if constexpr ( std::is_same_v<SR, Send>)
             {
                 // copy data
                 constexpr size_t offset = 0;
-                pack(data_pattern, offset, ranges...);
+                pack(pattern, offset, ranges...);
             }
         }
 
-        void retrieve_data(DataPattern<Ts...> const& data_pattern, Rs&... ranges)
+        void retrieve_data(Pattern<Ts...> const& pattern, Rs&... ranges)
         {
             size_t offset = 0;
-            unpack(data_pattern, offset, ranges...);
+            unpack(pattern, offset, ranges...);
         }
         
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
