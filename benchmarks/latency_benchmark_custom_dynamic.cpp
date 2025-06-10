@@ -6,24 +6,22 @@ class TestClass
 {
 public:
     TestClass() = default;
-    TestClass(int a, int b, double c, std::vector<float> d, std::array<float, 3> e, std::array<float, 3> f)
-        : _a(a), _b(b), _c(c), _d(d), _e(e), _f(f)
-    {}
-
-    int& get_a() { return _a; }
-    int& get_b() { return _b; }
-    double& get_c() { return _c; }
-    std::vector<float>& get_d() { return _d; }
-    std::array<float, 3>& get_e() { return _e; }
-    std::array<float, 3>& get_f() { return _f; }
-
-private:
-    int _a {};
-    int _b {};
-    double _c {};
-    std::vector<float> _d {};
-    std::array<float, 3> _e {};
-    std::array<float, 3> _f {};
+    unsigned int _cid {};
+    std::vector<double> _r {0,0,0};
+    std::array<double, 3> _F;
+    std::array<double, 3> _v;
+    std::array<double, 3> _M;
+    std::array<double, 3> _L;
+    std::array<double, 3> _Vi;
+    std::array<double, 3> _I;
+    std::array<double, 3> _invI;
+    std::array<double, 4> _q;
+    unsigned long _id {};
+    double _m {};
+    unsigned _soa_index_lj {};
+    unsigned _soa_index_c {};
+    unsigned _soa_index_d {};
+    unsigned _soa_index_q {};
 };
 
 
@@ -49,7 +47,7 @@ int main(int argc, char** argv)
     // DataPattern is not dynamic because one of the requested members has a dynamic size
     // /*constexpr */DataPattern<TestClass, "_a", "_b", "_d", "_f"> data_pattern;
 
-    auto type_size = 32;//data_pattern.get_size();
+    auto type_size = 72;//data_pattern.get_size();
     
     size_t min_message_size = type_size;
     size_t max_message_size = 4'194'304;
@@ -70,11 +68,11 @@ int main(int argc, char** argv)
         // get number of elements in message
         auto nb_elements = size / type_size;
         // init buffers
-        std::vector<TestClass> send_buf(nb_elements, TestClass(1, 2, 3.0, {4.0f, 5.6f, 7.8f}, {6.2f, 5.7f, 8.4f}, {1.2f, 2.3f, 3.4f}));
-        std::vector<TestClass> recv_buf(nb_elements, TestClass(1, 2, 3.0, {4.0f, 5.6f, 7.8f}, {6.2f, 5.7f, 8.4f}, {1.2f, 2.3f, 3.4f}));
+        std::vector<TestClass> send_buf(nb_elements/*, TestClass(1, 2, 3.0, {4.0f, 5.6f, 7.8f}, {6.2f, 5.7f, 8.4f}, {1.2f, 2.3f, 3.4f})*/);
+        std::vector<TestClass> recv_buf(nb_elements/*, TestClass(1, 2, 3.0, {4.0f, 5.6f, 7.8f}, {6.2f, 5.7f, 8.4f}, {1.2f, 2.3f, 3.4f})*/);
         
         // DataPattern is not dynamic because one of the requested members has a dynamic size
-        mppi::DataPattern<TestClass, "_a", "_b", "_d", "_f"> data_pattern(send_buf);
+        mppi::DataPattern<TestClass, "_id", "_cid", "_r", "_q"> data_pattern(send_buf);
         //
         MPI_Barrier(MPI_COMM_WORLD);
 
