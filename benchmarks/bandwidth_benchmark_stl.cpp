@@ -68,12 +68,12 @@ int main(int argc, char** argv)
                     double time_start = MPI_Wtime();
 
                     for (size_t j = 0; j < window_size; j++)
-                        requests[j] = comm.isend(1, mppi::Tag(99), send_buf | std::ranges::views::all);
+                        requests[j] = comm.isend(mppi::Destination(1), mppi::Tag(99), send_buf | std::ranges::views::all);
 
                     comm.waitall(requests);
 
                     char c;
-                    comm.recv(1, mppi::Tag(101), c);
+                    comm.recv(mppi::Source(1), mppi::Tag(101), c);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
@@ -81,12 +81,12 @@ int main(int argc, char** argv)
                 else if (comm.get_rank() == 1)
                 {
                     for (size_t j = 0; j < window_size; j++)
-                        requests[j] = comm.irecv(0, mppi::Tag(99), recv_buf | std::ranges::views::all);
+                        requests[j] = comm.irecv(mppi::Source(0), mppi::Tag(99), recv_buf | std::ranges::views::all);
                     
                     comm.waitall(requests);
 
                     char c = 'd';
-                    comm.send(0, mppi::Tag(101), c);
+                    comm.send(mppi::Destination(0), mppi::Tag(101), c);
                 }
             }
 

@@ -65,16 +65,16 @@ int main(int argc, char** argv)
                 {
                     double time_start = MPI_Wtime();
 
-                    comm.send(1, mppi::Tag(1), send_buf);
-                    comm.recv(1, mppi::Tag(1), recv_buf);
+                    comm.send(mppi::Destination(1), mppi::Tag(1), send_buf);
+                    comm.recv(mppi::Source(1), mppi::Tag(1), recv_buf);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
                 }
                 else if (comm.get_rank() == 1)
                 {
-                    comm.recv(0, mppi::Tag(1), recv_buf);
-                    comm.send(0, mppi::Tag(1), send_buf);
+                    comm.recv(mppi::Source(0), mppi::Tag(1), recv_buf);
+                    comm.send(mppi::Destination(0), mppi::Tag(1), send_buf);
                 }
             }
 
