@@ -23,7 +23,7 @@ int main(int argc, char** argv)
         auto type_size = sizeof(T);
 
         size_t min_message_size = type_size;
-        size_t max_message_size = 4194304;
+        size_t max_message_size = 4'194'304;
 
         if (comm.get_rank() == 0)
         {
@@ -68,13 +68,12 @@ int main(int argc, char** argv)
                     double time_start = MPI_Wtime();
 
                     for (size_t j = 0; j < window_size; j++)
-                        requests[j] = comm.isend(1, mppi::Tag(99), send_buf | std::ranges::views::all);
+                        requests[j] = comm.isend(mppi::Destination(1), mppi::Tag(99), send_buf | std::ranges::views::all);
 
                     comm.waitall(requests);
-                    // MPI_Waitall(window_size, request, reqstat);
+
                     char c;
-                    comm.recv(1, mppi::Tag(101), c);
-                    // MPI_Recv(recv_buf[0], 1, MPI_CHAR, 1, 101, MPI_COMM_WORLD, &reqstat[0]);
+                    comm.recv(mppi::Source(1), mppi::Tag(101), c);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
@@ -82,14 +81,12 @@ int main(int argc, char** argv)
                 else if (comm.get_rank() == 1)
                 {
                     for (size_t j = 0; j < window_size; j++)
-                        requests[j] = comm.irecv(0, mppi::Tag(99), recv_buf | std::ranges::views::all);
+                        requests[j] = comm.irecv(mppi::Source(0), mppi::Tag(99), recv_buf | std::ranges::views::all);
                     
                     comm.waitall(requests);
-                    // MPI_Waitall(window_size, request, reqstat);
-                    char c = 'd';
-                    comm.send(0, mppi::Tag(101), c);
-                    // MPI_Send(send_buf[0], 1, MPI_CHAR, 0, 101, MPI_COMM_WORLD);
 
+                    char c = 'd';
+                    comm.send(mppi::Destination(0), mppi::Tag(101), c);
                 }
             }
 

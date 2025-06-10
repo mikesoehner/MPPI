@@ -29,7 +29,7 @@ int main(int argc, char** argv)
         int type_size {};
         MPI_Type_size(mpi_type, &type_size);
         size_t min_message_size = type_size;
-        size_t max_message_size = 4194304;
+        size_t max_message_size = 4'194'304;
 
         char type_name[128];
         int resultlen {};
@@ -69,8 +69,6 @@ int main(int argc, char** argv)
                         MPI_Isend(send_buf.data(), nb_elements, mpi_type, 1, 100, MPI_COMM_WORLD, request + j);
 
                     MPI_Waitall(window_size, request, reqstat);
-                    // for (size_t j = 0; j < window_size; j++)
-                    //     MPI_Wait(request+j, MPI_STATUS_IGNORE);
 
                     char c;
                     MPI_Recv(&c, 1, MPI_CHAR, 1, 101, MPI_COMM_WORLD, &reqstat[0]);
@@ -84,8 +82,6 @@ int main(int argc, char** argv)
                         MPI_Irecv(recv_buf.data(), nb_elements, mpi_type, 0, 100, MPI_COMM_WORLD, request + j);
                     
                     MPI_Waitall(window_size, request, reqstat);
-                    // for (size_t j = 0; j < window_size; j++)
-                    //     MPI_Wait(request+j, MPI_STATUS_IGNORE);
                     
                     char c = 'd';
                     MPI_Send(&c, 1, MPI_CHAR, 0, 101, MPI_COMM_WORLD);

@@ -1,10 +1,21 @@
 #include <iostream>
 #include "communicator.hpp"
 
-class Molecule
+class CustomType
 {
 public:
-    Molecule() = default;
+    CustomType() = default;
+
+    std::array<double, 2> _x;
+    double _y;
+    char _a;
+    int _n;
+};
+
+class MoleculeType
+{
+public:
+    MoleculeType() = default;
 
     unsigned int _cid {};
     std::array<double, 3> _r;
@@ -24,16 +35,6 @@ public:
     unsigned _soa_index_q {};
 };
 
-class SimpleClass
-{
-public:
-    SimpleClass() = default;
-
-    std::array<double, 2> _x;
-    double _y;
-    char _a;
-    int _n;
-};
 
 int main(int argc, char** argv)
 {
@@ -52,14 +53,33 @@ int main(int argc, char** argv)
     if(comm.get_rank() == 0)
         std::cout << "# OSU Inpired MPI Bandwidth Test\n";
 
+    // prepare custom simple type
+    int B_simple[] = { 2, 1, 1 };
+    MPI_Aint D_simple[] = {
+        offsetof(CustomType, _x),
+        offsetof(CustomType, _y),
+        offsetof(CustomType, _n)
+    };
+    MPI_Datatype T_simple[] = {
+        MPI_DOUBLE,
+        MPI_DOUBLE,
+        MPI_INT
+    };
+
+    MPI_Datatype mpi_dt_custom_not_resized;
+    MPI_Datatype mpi_dt_custom;
+    MPI_Type_create_struct(3, B_simple, D_simple, T_simple, &mpi_dt_custom_not_resized);
+    MPI_Type_create_resized(mpi_dt_custom_not_resized, 0, sizeof(CustomType), &mpi_dt_custom);
+    MPI_Type_commit(&mpi_dt_custom);
+
     // prepare custom mol type
     int B_mol[] = { 1, 1, 1, 3, 4 };
     MPI_Aint D_mol[] = {
-        offsetof(Molecule, _id),
-        offsetof(Molecule, _cid),
-        offsetof(Molecule, _cid),
-        offsetof(Molecule, _r),
-        offsetof(Molecule, _q)
+        offsetof(MoleculeType, _id),
+        offsetof(MoleculeType, _cid),
+        offsetof(MoleculeType, _cid),
+        offsetof(MoleculeType, _r),
+        offsetof(MoleculeType, _q)
     };
     MPI_Datatype T_mol[] = {
         MPI_UNSIGNED_LONG,
@@ -73,29 +93,10 @@ int main(int argc, char** argv)
     MPI_Type_create_struct(5, B_mol, D_mol, T_mol, &mpi_dt_mol);
     MPI_Type_commit(&mpi_dt_mol);
 
-    // prepare custom simple type
-    int B_simple[] = { 2, 1, 1 };
-    MPI_Aint D_simple[] = {
-        offsetof(SimpleClass, _x),
-        offsetof(SimpleClass, _y),
-        offsetof(SimpleClass, _n)
-    };
-    MPI_Datatype T_simple[] = {
-        MPI_DOUBLE,
-        MPI_DOUBLE,
-        MPI_INT
-    };
+    std::vector<MPI_Datatype> mpi_types {mpi_dt_custom, mpi_dt_mol};
 
-    MPI_Datatype mpi_dt_simple_not_resized;
-    MPI_Datatype mpi_dt_simple;
-    MPI_Type_create_struct(3, B_simple, D_simple, T_simple, &mpi_dt_simple_not_resized);
-    MPI_Type_create_resized(mpi_dt_simple_not_resized, 0, sizeof(SimpleClass), &mpi_dt_simple);
-    MPI_Type_commit(&mpi_dt_simple);
-
-    std::vector<MPI_Datatype> mpi_types {mpi_dt_simple, mpi_dt_mol};
-
-    std::vector<size_t> original_sizes {sizeof(SimpleClass), sizeof(Molecule)};
-
+    std::vector<size_t> original_sizes {sizeof(CustomType), sizeof(MoleculeType)};
+    std::vector<std::array<char, 128>> type_names{{"Custom Type"}, {"Molecule Type"}};
 
     // loop through different datatypes that should be benchmarked
     for (size_t i = 0; i < mpi_types.size(); i++)
@@ -105,14 +106,11 @@ int main(int argc, char** argv)
         int type_size {};
         MPI_Type_size(mpi_type, &type_size);
         size_t min_message_size = type_size;
-        size_t max_message_size = 4194304;
+        size_t max_message_size = 4'194'304;
 
-        char type_name[128];
-        int resultlen {};
-        MPI_Type_get_name(mpi_type, type_name, &resultlen);
         if (comm.get_rank() == 0)
         {
-            fprintf(stdout, "# Datatype: %s.\n", type_name);
+            fprintf(stdout, "# Datatype: %s.\n", type_names[i].data());
             fprintf(stdout, "%-*s", 10, "# Size");
             fprintf(stdout, "%*s", 20, "Bandwidth (MB/s)\n");
         }
@@ -133,7 +131,10 @@ int main(int argc, char** argv)
             MPI_Barrier(MPI_COMM_WORLD);
 
             double time_total = 0.0;
-            size_t nb_iterations = 10'000;
+            size_t nb_iterations = 1'000;
+
+            if (size > 4194304)
+                nb_iterations = 100;
 
             for (size_t iteration = 0; iteration < nb_iterations; iteration++)
             {
@@ -160,8 +161,6 @@ int main(int argc, char** argv)
                         MPI_Irecv(recv_buf.data(), nb_elements, mpi_type, 0, 100, MPI_COMM_WORLD, request + j);
                     
                     MPI_Waitall(window_size, request, reqstat);
-                    // for (size_t j = 0; j < window_size; j++)
-                    //     MPI_Wait(request+j, MPI_STATUS_IGNORE);
                     
                     char c = 'd';
                     MPI_Send(&c, 1, MPI_CHAR, 0, 101, MPI_COMM_WORLD);

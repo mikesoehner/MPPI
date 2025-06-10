@@ -1,10 +1,21 @@
 #include <iostream>
 #include "communicator.hpp"
 
-class Molecule
+class CustomType
 {
 public:
-    Molecule() = default;
+    CustomType() = default;
+
+    std::array<double, 2> _x;
+    double _y;
+    char _a;
+    int _n;
+};
+
+class MoleculeType
+{
+public:
+    MoleculeType() = default;
 
     unsigned int _cid {};
     std::array<double, 3> _r;
@@ -24,17 +35,6 @@ public:
     unsigned _soa_index_q {};
 };
 
-class SimpleClass
-{
-public:
-    SimpleClass() = default;
-
-    std::array<double, 2> _x;
-    double _y;
-    char _a;
-    int _n;
-};
-
 int main(int argc, char** argv)
 {
     MPI_Init(&argc, &argv);
@@ -52,28 +52,26 @@ int main(int argc, char** argv)
     if(comm.get_rank() == 0)
         std::cout << "# OSU Inpired MPI Bandwidth Test\n";
 
-    SimpleClass simple;
-    mppi::DataPattern simple_pattern(&simple, simple._x, simple._y, simple._n);
-    Molecule mol;
-    mppi::DataPattern mol_pattern(&mol, mol._id, mol._cid, mol._r, mol._q);
+    CustomType cutom_type;
+    mppi::Pattern custom_pattern(&cutom_type, cutom_type._x, cutom_type._y, cutom_type._n);
+    MoleculeType molecule_type;
+    mppi::Pattern mol_pattern(&molecule_type, molecule_type._id, molecule_type._cid, molecule_type._r, molecule_type._q);
 
-    std::tuple data_patterns {simple_pattern, mol_pattern};
+    std::tuple patterns {custom_pattern, mol_pattern};
 
-    constexpr auto size = std::tuple_size_v<decltype(data_patterns)>;
+    constexpr auto tuple_size = std::tuple_size_v<decltype(patterns)>;
+    std::vector<std::array<char, 128>> type_names{{"Custom Type"}, {"Molecule Type"}};
 
-    auto benchmark = [&comm]<typename Pattern>(Pattern data_pattern)
-    {   
-        auto type_size = sizeof(Pattern);
+    auto benchmark = [&comm]<typename Pattern>(Pattern pattern, std::array<char, 128>& type_name)
+    {
+        auto type_size = pattern.get_size();
 
         size_t min_message_size = type_size;
-        size_t max_message_size = 4194304;
+        size_t max_message_size = 4'194'304;
 
-        char type_name[128] = {"MPI_CUSTOM_TYPE"};
-        // int resultlen {};
-        // MPI_Type_get_name(mpi_type, type_name, &resultlen);
         if (comm.get_rank() == 0)
         {
-            fprintf(stdout, "# Datatype: %s.\n", type_name);
+            fprintf(stdout, "# Datatype: %s.\n", type_name.data());
             fprintf(stdout, "%-*s", 10, "# Size");
             fprintf(stdout, "%*s", 20, "Bandwidth (MB/s)\n");
         }
@@ -95,7 +93,10 @@ int main(int argc, char** argv)
             MPI_Barrier(MPI_COMM_WORLD);
 
             double time_total = 0.0;
-            size_t nb_iterations = 10'000;
+            size_t nb_iterations = 1'000;
+
+            if (size > 4194304)
+                nb_iterations = 100;
 
             for (size_t iteration = 0; iteration < nb_iterations; iteration++)
             {
@@ -104,13 +105,12 @@ int main(int argc, char** argv)
                     double time_start = MPI_Wtime();
 
                     for (size_t j = 0; j < window_size; j++)
-                        requests[j] = comm.isend(1, mppi::Tag(99), send_buf | std::ranges::views::all);
+                        requests[j] = comm.isend(mppi::Destination(1), mppi::Tag(99), pattern, send_buf | std::ranges::views::all);
 
                     comm.waitall(requests);
-                    // MPI_Waitall(window_size, request, reqstat);
+
                     char c;
-                    comm.recv(1, mppi::Tag(101), c);
-                    // MPI_Recv(recv_buf[0], 1, MPI_CHAR, 1, 101, MPI_COMM_WORLD, &reqstat[0]);
+                    comm.recv(mppi::Source(1), mppi::Tag(101), c);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
@@ -118,13 +118,12 @@ int main(int argc, char** argv)
                 else if (comm.get_rank() == 1)
                 {
                     for (size_t j = 0; j < window_size; j++)
-                        requests[j] = comm.irecv(0, mppi::Tag(99), recv_buf | std::ranges::views::all);
+                        requests[j] = comm.irecv(mppi::Source(0), mppi::Tag(99), pattern, recv_buf | std::ranges::views::all);
                     
                     comm.waitall(requests);
-                    // MPI_Waitall(window_size, request, reqstat);
+
                     char c = 'd';
-                    comm.send(0, mppi::Tag(101), c);
-                    // MPI_Send(send_buf[0], 1, MPI_CHAR, 0, 101, MPI_COMM_WORLD);
+                    comm.send(mppi::Destination(0), mppi::Tag(101), c);
                 }
             }
 
@@ -140,12 +139,12 @@ int main(int argc, char** argv)
         }
     };
 
-    auto wrapper = [benchmark]<typename Tuple, std::size_t... Ids>(Tuple& tuple, std::index_sequence<Ids...>)
+    auto wrapper = [benchmark]<typename Tuple, std::size_t... Ids>(Tuple& tuple, std::vector<std::array<char, 128>>& type_names, std::index_sequence<Ids...>)
     {
-        (benchmark(std::get<Ids>(tuple)), ...);
+        (benchmark(std::get<Ids>(tuple), type_names[Ids]), ...);
     };
 
-    wrapper(data_patterns, std::make_index_sequence<size>{});
+    wrapper(patterns, type_names, std::make_index_sequence<tuple_size>{});
 
 
     MPI_Finalize();

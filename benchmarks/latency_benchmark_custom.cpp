@@ -2,10 +2,21 @@
 #include <tuple>
 #include "communicator.hpp"
 
-class Molecule
+class CustomType
 {
 public:
-    Molecule() = default;
+    CustomType() = default;
+
+    std::array<double, 2> _x;
+    double _y;
+    char _a;
+    int _n;
+};
+
+class MoleculeType
+{
+public:
+    MoleculeType() = default;
 
     unsigned int _cid {};
     std::array<double, 3> _r;
@@ -25,16 +36,24 @@ public:
     unsigned _soa_index_q {};
 };
 
-class SimpleClass
+class ContinousType
 {
 public:
-    SimpleClass() = default;
-
-    std::array<double, 2> _x;
-    double _y;
-    char _a;
-    int _n;
+    std::array<char, 1024> _arr;
 };
+
+class NestedBase
+{
+public:
+    char _c;
+};
+
+class NestedDerived : public NestedBase
+{};
+
+class NestedDerivedDerived : public NestedDerived
+{};
+
 
 int main(int argc, char** argv)
 {
@@ -55,28 +74,32 @@ int main(int argc, char** argv)
 
     MPI_Status reqstat;
 
-    SimpleClass simple;
-    mppi::DataPattern simple_pattern(&simple, simple._x, simple._y, simple._n);
-    Molecule mol;
-    mppi::DataPattern mol_pattern(&mol, mol._id, mol._cid, mol._r, mol._q);
+    ContinousType continous_type;
+    mppi::Pattern cont_custom_pattern(&continous_type, continous_type._arr);
+    NestedDerivedDerived nested_derived_derived;
+    mppi::Pattern derived_pattern(&nested_derived_derived, nested_derived_derived._c);
 
-    std::tuple data_patterns {simple_pattern, mol_pattern};
+    CustomType cutom_type;
+    mppi::Pattern custom_pattern(&cutom_type, cutom_type._x, cutom_type._y, cutom_type._n);
+    MoleculeType molecule_type;
+    mppi::Pattern mol_pattern(&molecule_type, molecule_type._id, molecule_type._cid, molecule_type._r, molecule_type._q);
 
-    constexpr auto size = std::tuple_size_v<decltype(data_patterns)>;
+    std::tuple patterns {cont_custom_pattern, derived_pattern, custom_pattern, mol_pattern};
+
+    constexpr auto tuple_size = std::tuple_size_v<decltype(patterns)>;
+
+    std::vector<std::array<char, 128>> type_names{{"Continous Type"}, {"Nested Type"}, {"Custom Type"}, {"Molecule Type"}};
     
-    auto benchmark = [&comm]<typename Pattern>(Pattern data_pattern)
+    auto benchmark = [&comm]<typename Pattern>(Pattern pattern, std::array<char, 128>& type_name)
     {
-        auto type_size = data_pattern.get_size();
+        auto type_size = pattern.get_size();
         
         size_t min_message_size = type_size;
-        size_t max_message_size = 4'194'304 * 4;
+        size_t max_message_size = 4'194'304;
 
-        char type_name[128] = {"MPI_CUSTOM_TYPE"};
-        // int resultlen {};
-        // MPI_Type_get_name(mpi_type, type_name, &resultlen);
         if (comm.get_rank() == 0)
         {
-            fprintf(stdout, "# Datatype: %s.\n", type_name);
+            fprintf(stdout, "# Datatype: %s.\n", type_name.data());
             fprintf(stdout, "%-*s", 10, "# Size");
             fprintf(stdout, "%*s", 20, "Avg Latency(us)\n");
         }
@@ -94,7 +117,7 @@ int main(int argc, char** argv)
             MPI_Barrier(MPI_COMM_WORLD);
 
             double time_total = 0.0;
-            size_t nb_iterations = 10'000;
+            size_t nb_iterations = 10000;
 
             for (size_t iteration = 0; iteration < nb_iterations; iteration++)
             {
@@ -102,16 +125,16 @@ int main(int argc, char** argv)
                 {
                     double time_start = MPI_Wtime();
 
-                    comm.send(1, mppi::Tag(1), data_pattern, send_buf);
-                    comm.recv(1, mppi::Tag(1), data_pattern, recv_buf);
+                    comm.send(mppi::Destination(1), mppi::Tag(1), pattern, send_buf);
+                    comm.recv(mppi::Source(1), mppi::Tag(1), pattern, recv_buf);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
                 }
                 else if (comm.get_rank() == 1)
                 {
-                    comm.recv(0, mppi::Tag(1), data_pattern, recv_buf);
-                    comm.send(0, mppi::Tag(1), data_pattern, send_buf);
+                    comm.recv(mppi::Source(0), mppi::Tag(1), pattern, recv_buf);
+                    comm.send(mppi::Destination(0), mppi::Tag(1), pattern, send_buf);
                 }
             }
 
@@ -126,12 +149,12 @@ int main(int argc, char** argv)
         }
     };
 
-    auto wrapper = [benchmark]<typename Tuple, std::size_t... Ids>(Tuple& tuple, std::index_sequence<Ids...>)
+    auto wrapper = [benchmark]<typename Tuple, std::size_t... Ids>(Tuple& tuple, std::vector<std::array<char, 128>>& type_names, std::index_sequence<Ids...>)
     {
-        (benchmark(std::get<Ids>(tuple)), ...);
+        (benchmark(std::get<Ids>(tuple), type_names[Ids]), ...);
     };
 
-    wrapper(data_patterns, std::make_index_sequence<size>{});
+    wrapper(patterns, type_names, std::make_index_sequence<tuple_size>{});
 
 
     MPI_Finalize();
