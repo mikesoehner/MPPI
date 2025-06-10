@@ -61,7 +61,7 @@ int main(int argc, char** argv)
 
     auto benchmark = [&comm]<typename Pattern>(Pattern data_pattern)
     {   
-        auto type_size = sizeof(Pattern);
+        auto type_size = data_pattern.get_size();
 
         size_t min_message_size = type_size;
         size_t max_message_size = 4194304;
