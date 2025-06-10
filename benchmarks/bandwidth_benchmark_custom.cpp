@@ -57,7 +57,7 @@ int main(int argc, char** argv)
 
     std::tuple data_patterns {simple_pattern, mol_pattern};
 
-    constexpr auto size = std::tuple_size_v<decltype(data_patterns)>;
+    constexpr auto tuple_size = std::tuple_size_v<decltype(data_patterns)>;
 
     auto benchmark = [&comm]<typename Pattern>(Pattern data_pattern)
     {   
@@ -143,7 +143,7 @@ int main(int argc, char** argv)
         (benchmark(std::get<Ids>(tuple)), ...);
     };
 
-    wrapper(data_patterns, std::make_index_sequence<size>{});
+    wrapper(data_patterns, std::make_index_sequence<tuple_size>{});
 
 
     MPI_Finalize();
