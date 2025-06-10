@@ -1,10 +1,21 @@
 #include <iostream>
 #include "communicator.hpp"
 
-class Molecule
+class CustomType
 {
 public:
-    Molecule() = default;
+    CustomType() = default;
+
+    std::array<double, 2> _x;
+    double _y;
+    char _a;
+    int _n;
+};
+
+class MoleculeType
+{
+public:
+    MoleculeType() = default;
 
     unsigned int _cid {};
     std::array<double, 3> _r;
@@ -24,16 +35,24 @@ public:
     unsigned _soa_index_q {};
 };
 
-class SimpleClass
+class ContinousType
 {
 public:
-    SimpleClass() = default;
-
-    std::array<double, 2> _x;
-    double _y;
-    char _a;
-    int _n;
+    std::array<char, 1024> _arr;
 };
+
+class NestedBase
+{
+public:
+    char _c;
+};
+
+class NestedDerived : public NestedBase
+{};
+
+class NestedDerivedDerived : public NestedDerived
+{};
+
 
 int main(int argc, char** argv)
 {
@@ -54,14 +73,57 @@ int main(int argc, char** argv)
 
     MPI_Status reqstat;
 
+    
+    // for Case 1
+    MPI_Datatype mpi_dt_cont;
+    MPI_Type_contiguous(1024, MPI_CHAR, &mpi_dt_cont);
+    MPI_Type_commit(&mpi_dt_cont);
+
+    // for Case 2
+    int B_cont[] = { 1024 };
+    MPI_Aint D_cont[] = { offsetof(ContinousType, _arr) };
+    MPI_Datatype T_cont[] = { MPI_CHAR };
+    MPI_Datatype mpi_dt_cont_custom;
+    MPI_Type_create_struct(1, B_cont, D_cont, T_cont, &mpi_dt_cont_custom);
+    MPI_Type_commit(&mpi_dt_cont_custom);
+
+    // for Case 3
+    int B_der[] = { 1 };
+    MPI_Aint D_der[] = { offsetof(NestedDerivedDerived, _c) };
+    MPI_Datatype T_der[] = { MPI_CHAR };
+    MPI_Datatype mpi_dt_derived;
+    MPI_Type_create_struct(1, B_der, D_der, T_der, &mpi_dt_derived);
+    MPI_Type_commit(&mpi_dt_derived);
+
+
+    // prepare custom simple type
+    int B_simple[] = { 2, 1, 1 };
+    MPI_Aint D_simple[] = {
+        offsetof(CustomType, _x),
+        offsetof(CustomType, _y),
+        offsetof(CustomType, _n)
+    };
+    MPI_Datatype T_simple[] = {
+        MPI_DOUBLE,
+        MPI_DOUBLE,
+        MPI_INT
+    };
+
+    MPI_Datatype mpi_dt_custom_not_resized;
+    MPI_Datatype mpi_dt_custom;
+    MPI_Type_create_struct(3, B_simple, D_simple, T_simple, &mpi_dt_custom_not_resized);
+    MPI_Type_create_resized(mpi_dt_custom_not_resized, 0, sizeof(CustomType), &mpi_dt_custom);
+    MPI_Type_commit(&mpi_dt_custom);
+
+
     // prepare custom mol type
     int B_mol[] = { 1, 1, 1, 3, 4 };
     MPI_Aint D_mol[] = {
-        offsetof(Molecule, _id),
-        offsetof(Molecule, _cid),
-        offsetof(Molecule, _cid),
-        offsetof(Molecule, _r),
-        offsetof(Molecule, _q)
+        offsetof(MoleculeType, _id),
+        offsetof(MoleculeType, _cid),
+        offsetof(MoleculeType, _cid),
+        offsetof(MoleculeType, _r),
+        offsetof(MoleculeType, _q)
     };
     MPI_Datatype T_mol[] = {
         MPI_UNSIGNED_LONG,
@@ -75,28 +137,12 @@ int main(int argc, char** argv)
     MPI_Type_create_struct(5, B_mol, D_mol, T_mol, &mpi_dt_mol);
     MPI_Type_commit(&mpi_dt_mol);
 
-    // prepare custom simple type
-    int B_simple[] = { 2, 1, 1 };
-    MPI_Aint D_simple[] = {
-        offsetof(SimpleClass, _x),
-        offsetof(SimpleClass, _y),
-        offsetof(SimpleClass, _n)
-    };
-    MPI_Datatype T_simple[] = {
-        MPI_DOUBLE,
-        MPI_DOUBLE,
-        MPI_INT
-    };
 
-    MPI_Datatype mpi_dt_simple_not_resized;
-    MPI_Datatype mpi_dt_simple;
-    MPI_Type_create_struct(3, B_simple, D_simple, T_simple, &mpi_dt_simple_not_resized);
-    MPI_Type_create_resized(mpi_dt_simple_not_resized, 0, sizeof(SimpleClass), &mpi_dt_simple);
-    MPI_Type_commit(&mpi_dt_simple);
 
-    std::vector<MPI_Datatype> mpi_types {mpi_dt_simple, mpi_dt_mol};
+    std::vector<MPI_Datatype> mpi_types {mpi_dt_cont, mpi_dt_cont_custom, mpi_dt_derived, mpi_dt_custom, mpi_dt_mol};
 
-    std::vector<size_t> original_sizes {sizeof(SimpleClass), sizeof(Molecule)};
+    std::vector<size_t> original_sizes {1024, sizeof(ContinousType), sizeof(NestedDerivedDerived), sizeof(CustomType), sizeof(MoleculeType)};
+    std::vector<std::array<char, 128>> type_names{{"Continous Type"}, {"Continous Type Struct"}, {"Nested Type"}, {"Custom Type"}, {"Molecule Type"}};
 
     // loop through different datatypes that should be benchmarked
     for (size_t i = 0; i < mpi_types.size(); i++)
@@ -106,16 +152,11 @@ int main(int argc, char** argv)
         int type_size {};
         MPI_Type_size(mpi_type, &type_size);
         size_t min_message_size = type_size;
-        // type_size = sizeof(MyClass);
-        // min_message_size = sizeof(MyClass);
         size_t max_message_size = 4'194'304;
 
-        char type_name[128];
-        int resultlen {};
-        MPI_Type_get_name(mpi_type, type_name, &resultlen);
         if (comm.get_rank() == 0)
         {
-            fprintf(stdout, "# Datatype: %s.\n", type_name);
+            fprintf(stdout, "# Datatype: %s.\n", type_names[i].data());
             fprintf(stdout, "%-*s", 10, "# Size");
             fprintf(stdout, "%*s", 20, "Avg Latency(us)\n");
         }

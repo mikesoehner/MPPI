@@ -2,11 +2,22 @@
 #include <tuple>
 #include "communicator.hpp"
 
-
-class Molecule
+class CustomType
 {
 public:
-    Molecule() = default;
+    CustomType() = default;
+
+private:
+    std::array<double, 2> _x;
+    double _y;
+    char _a;
+    int _n;
+};
+
+class MoleculeType
+{
+public:
+    MoleculeType() = default;
 
 private:
     unsigned int _cid {};
@@ -27,17 +38,23 @@ private:
     unsigned _soa_index_q {};
 };
 
-class SimpleClass
+class ContinousType
 {
 public:
-    SimpleClass() = default;
-
-private:
-    std::array<double, 2> _x;
-    double _y;
-    char _a;
-    int _n;
+    std::array<char, 1024> _arr;
 };
+
+class NestedBase
+{
+public:
+    char _c;
+};
+
+class NestedDerived : public NestedBase
+{};
+
+class NestedDerivedDerived : public NestedDerived
+{};
 
 
 int main(int argc, char** argv)
@@ -59,26 +76,28 @@ int main(int argc, char** argv)
 
     MPI_Status reqstat;
 
-    constexpr mppi::DataPattern<SimpleClass, "_x", "_y", "_n"> simple_pattern;
-    constexpr mppi::DataPattern<Molecule, "_id", "_cid", "_r", "_q"> mol_pattern;
+    constexpr mppi::DataPattern<ContinousType, "_arr"> cont_custom_pattern;
+    constexpr mppi::DataPattern<NestedDerivedDerived, "_c"> derived_pattern;
 
-    std::tuple data_patterns {simple_pattern, mol_pattern};
+    constexpr mppi::DataPattern<CustomType, "_x", "_y", "_n"> custom_pattern;
+    constexpr mppi::DataPattern<MoleculeType, "_id", "_cid", "_r", "_q"> mol_pattern;
 
-    constexpr auto size = std::tuple_size_v<decltype(data_patterns)>;
+    std::tuple data_patterns {cont_custom_pattern, derived_pattern, custom_pattern, mol_pattern};
+
+    constexpr auto tuple_size = std::tuple_size_v<decltype(data_patterns)>;
+
+    std::vector<std::array<char, 128>> type_names{{"Continous Type"}, {"Nested Type"}, {"Custom Type"}, {"Molecule Type"}};
     
-    auto benchmark = [&comm]<typename Pattern>(Pattern data_pattern)
+    auto benchmark = [&comm]<typename Pattern>(Pattern data_pattern, std::array<char, 128>& type_name)
     {
         auto type_size = data_pattern.get_size();
         
         size_t min_message_size = type_size;
         size_t max_message_size = 4'194'304;
 
-        char type_name[128] = {"MPI_CUSTOM_TYPE"};
-        // int resultlen {};
-        // MPI_Type_get_name(mpi_type, type_name, &resultlen);
         if (comm.get_rank() == 0)
         {
-            fprintf(stdout, "# Datatype: %s.\n", type_name);
+            fprintf(stdout, "# Datatype: %s.\n", type_name.data());
             fprintf(stdout, "%-*s", 10, "# Size");
             fprintf(stdout, "%*s", 20, "Avg Latency(us)\n");
         }
@@ -104,16 +123,16 @@ int main(int argc, char** argv)
                 {
                     double time_start = MPI_Wtime();
 
-                    comm.send(1, mppi::Tag(1), data_pattern, send_buf);
-                    comm.recv(1, mppi::Tag(1), data_pattern, recv_buf);
+                    comm.send(1, mppi::Tag(1), send_buf);
+                    comm.recv(1, mppi::Tag(1), recv_buf);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
                 }
                 else if (comm.get_rank() == 1)
                 {
-                    comm.recv(0, mppi::Tag(1), data_pattern, recv_buf);
-                    comm.send(0, mppi::Tag(1), data_pattern, send_buf);
+                    comm.recv(0, mppi::Tag(1), recv_buf);
+                    comm.send(0, mppi::Tag(1), send_buf);
                 }
             }
 
@@ -128,12 +147,12 @@ int main(int argc, char** argv)
         }
     };
 
-    auto wrapper = [benchmark]<typename Tuple, std::size_t... Ids>(Tuple& tuple, std::index_sequence<Ids...>)
+    auto wrapper = [benchmark]<typename Tuple, std::size_t... Ids>(Tuple& tuple, std::vector<std::array<char, 128>>& type_names, std::index_sequence<Ids...>)
     {
-        (benchmark(std::get<Ids>(tuple)), ...);
+        (benchmark(std::get<Ids>(tuple), type_names[Ids]), ...);
     };
 
-    wrapper(data_patterns, std::make_index_sequence<size>{});
+    wrapper(data_patterns, type_names, std::make_index_sequence<tuple_size>{});
 
 
     MPI_Finalize();

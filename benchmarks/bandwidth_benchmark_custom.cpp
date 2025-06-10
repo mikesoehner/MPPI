@@ -1,11 +1,24 @@
 #include <iostream>
 #include "communicator.hpp"
 
-class Molecule
+class CustomType
 {
 public:
-    Molecule() = default;
+    CustomType() = default;
 
+private:
+    std::array<double, 2> _x;
+    double _y;
+    char _a;
+    int _n;
+};
+
+class MoleculeType
+{
+public:
+    MoleculeType() = default;
+
+private:
     unsigned int _cid {};
     std::array<double, 3> _r;
     std::array<double, 3> _F;
@@ -22,17 +35,6 @@ public:
     unsigned _soa_index_c {};
     unsigned _soa_index_d {};
     unsigned _soa_index_q {};
-};
-
-class SimpleClass
-{
-public:
-    SimpleClass() = default;
-
-    std::array<double, 2> _x;
-    double _y;
-    char _a;
-    int _n;
 };
 
 int main(int argc, char** argv)
@@ -52,26 +54,24 @@ int main(int argc, char** argv)
     if(comm.get_rank() == 0)
         std::cout << "# OSU Inpired MPI Bandwidth Test\n";
 
-    constexpr mppi::DataPattern<SimpleClass, "_x", "_y", "_n"> simple_pattern;
-    constexpr mppi::DataPattern<Molecule, "_id", "_cid", "_r", "_q"> mol_pattern;
+    constexpr mppi::DataPattern<CustomType, "_x", "_y", "_n"> custom_pattern;
+    constexpr mppi::DataPattern<MoleculeType, "_id", "_cid", "_r", "_q"> mol_pattern;
 
-    std::tuple data_patterns {simple_pattern, mol_pattern};
+    std::tuple data_patterns {custom_pattern, mol_pattern};
 
     constexpr auto tuple_size = std::tuple_size_v<decltype(data_patterns)>;
+    std::vector<std::array<char, 128>> type_names{{"Custom Type"}, {"Molecule Type"}};
 
-    auto benchmark = [&comm]<typename Pattern>(Pattern data_pattern)
-    {   
+    auto benchmark = [&comm]<typename Pattern>(Pattern data_pattern, std::array<char, 128>& type_name)
+    {
         auto type_size = data_pattern.get_size();
 
         size_t min_message_size = type_size;
         size_t max_message_size = 4'194'304;
 
-        char type_name[128] = {"MPI_CUSTOM_TYPE"};
-        // int resultlen {};
-        // MPI_Type_get_name(mpi_type, type_name, &resultlen);
         if (comm.get_rank() == 0)
         {
-            fprintf(stdout, "# Datatype: %s.\n", type_name);
+            fprintf(stdout, "# Datatype: %s.\n", type_name.data());
             fprintf(stdout, "%-*s", 10, "# Size");
             fprintf(stdout, "%*s", 20, "Bandwidth (MB/s)\n");
         }
@@ -108,10 +108,9 @@ int main(int argc, char** argv)
                         requests[j] = comm.isend(1, mppi::Tag(99), data_pattern, send_buf | std::ranges::views::all);
 
                     comm.waitall(requests);
-                    // MPI_Waitall(window_size, request, reqstat);
+
                     char c;
                     comm.recv(1, mppi::Tag(101), c);
-                    // MPI_Recv(recv_buf[0], 1, MPI_CHAR, 1, 101, MPI_COMM_WORLD, &reqstat[0]);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
@@ -122,10 +121,9 @@ int main(int argc, char** argv)
                         requests[j] = comm.irecv(0, mppi::Tag(99), data_pattern, recv_buf | std::ranges::views::all);
                     
                     comm.waitall(requests);
-                    // MPI_Waitall(window_size, request, reqstat);
+
                     char c = 'd';
                     comm.send(0, mppi::Tag(101), c);
-                    // MPI_Send(send_buf[0], 1, MPI_CHAR, 0, 101, MPI_COMM_WORLD);
                 }
             }
 
@@ -141,12 +139,12 @@ int main(int argc, char** argv)
         }
     };
 
-    auto wrapper = [benchmark]<typename Tuple, std::size_t... Ids>(Tuple& tuple, std::index_sequence<Ids...>)
+    auto wrapper = [benchmark]<typename Tuple, std::size_t... Ids>(Tuple& tuple, std::vector<std::array<char, 128>>& type_names, std::index_sequence<Ids...>)
     {
-        (benchmark(std::get<Ids>(tuple)), ...);
+        (benchmark(std::get<Ids>(tuple), type_names[Ids]), ...);
     };
 
-    wrapper(data_patterns, std::make_index_sequence<tuple_size>{});
+    wrapper(data_patterns, type_names, std::make_index_sequence<tuple_size>{});
 
 
     MPI_Finalize();

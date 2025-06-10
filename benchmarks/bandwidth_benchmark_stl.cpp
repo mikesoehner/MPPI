@@ -71,10 +71,9 @@ int main(int argc, char** argv)
                         requests[j] = comm.isend(1, mppi::Tag(99), send_buf | std::ranges::views::all);
 
                     comm.waitall(requests);
-                    // MPI_Waitall(window_size, request, reqstat);
+
                     char c;
                     comm.recv(1, mppi::Tag(101), c);
-                    // MPI_Recv(recv_buf[0], 1, MPI_CHAR, 1, 101, MPI_COMM_WORLD, &reqstat[0]);
 
                     double time_end = MPI_Wtime();
                     time_total += time_end - time_start;
@@ -85,11 +84,9 @@ int main(int argc, char** argv)
                         requests[j] = comm.irecv(0, mppi::Tag(99), recv_buf | std::ranges::views::all);
                     
                     comm.waitall(requests);
-                    // MPI_Waitall(window_size, request, reqstat);
+
                     char c = 'd';
                     comm.send(0, mppi::Tag(101), c);
-                    // MPI_Send(send_buf[0], 1, MPI_CHAR, 0, 101, MPI_COMM_WORLD);
-
                 }
             }
 
