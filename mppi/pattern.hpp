@@ -15,18 +15,18 @@
 namespace mppi 
 {
     template<typename OriginalType, StringLiteral... Identifiers>
-    class DataPattern
+    class Pattern
     {
     public:
         // Compile-time evaluated constructors
         // This constructor takes the StringLiterals as arguments
-        consteval DataPattern()
+        consteval Pattern()
             requires has_only_trivially_copyable_types<OriginalType, Identifiers...> && is_without_pointers<OriginalType, Identifiers...>
             : _size(calc_packed_size<OriginalType, Identifiers...>())
         {}
     
         // This constructor takes predetermined arrays and works on them
-        consteval DataPattern(size_t size)
+        consteval Pattern(size_t size)
             requires has_only_trivially_copyable_types<OriginalType> && is_without_pointers<OriginalType, Identifiers...>
             : _size(size)
         {}
@@ -34,13 +34,13 @@ namespace mppi
         // Run-time evaluated constructors
         // This constructor takes the StringLiterals as arguments (the ranges are required to calculate the dynamic ranges)
         template<are_input_ranges... Rs>
-        DataPattern(Rs... ranges)
+        Pattern(Rs... ranges)
             requires (!has_only_trivially_copyable_types<OriginalType, Identifiers...>) && is_without_pointers<OriginalType, Identifiers...>
             : _size(calc_packed_size_with_container_identifier<OriginalType, Identifiers...>(ranges...))
         {}
     
         // This constructor takes predetermined arrays and works on them
-        DataPattern(size_t size)
+        Pattern(size_t size)
             requires (!has_only_trivially_copyable_types<OriginalType>) && is_without_pointers<OriginalType, Identifiers...>
             : _size(size)
         {}

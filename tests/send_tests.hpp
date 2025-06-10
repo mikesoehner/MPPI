@@ -181,7 +181,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         }
     }
 
-    SECTION("Sending an entire stl container with a DataPattern without holes")
+    SECTION("Sending an entire stl container with a Pattern without holes")
     {
         class TestClass
         {
@@ -203,7 +203,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             std::array<float, 3> _d {};
         };
 
-        constexpr mppi::DataPattern<TestClass, "_a", "_b", "_c", "_d"> data_pattern;
+        constexpr mppi::Pattern<TestClass, "_a", "_b", "_c", "_d"> pattern;
 
         std::vector<TestClass> tests_vec;
         
@@ -214,13 +214,13 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec.emplace_back(TestClass(3, 4, 5.0, {6.0f, 7.0f, 8.0f}));
             tests_vec.emplace_back(TestClass(4, 5, 6.0, {7.0f, 8.0f, 9.0f}));
 
-            comm.send(mppi::Destination(1), mppi::Tag(0), data_pattern, tests_vec);
+            comm.send(mppi::Destination(1), mppi::Tag(0), pattern, tests_vec);
         }
         else
         {
             tests_vec.resize(4);
 
-            comm.recv(mppi::Source(0), mppi::Tag(0), data_pattern, tests_vec);
+            comm.recv(mppi::Source(0), mppi::Tag(0), pattern, tests_vec);
 
             REQUIRE(tests_vec[0].get_a() == 1);
             REQUIRE(tests_vec[1].get_a() == 2);
@@ -244,7 +244,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         }
     }
 
-    SECTION("Sending an entire stl container with a DataPattern")
+    SECTION("Sending an entire stl container with a Pattern")
     {
         class TestClass
         {
@@ -266,7 +266,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             std::array<float, 3> _d {};
         };
 
-        constexpr mppi::DataPattern<TestClass, "_a", "_d"> data_pattern;
+        constexpr mppi::Pattern<TestClass, "_a", "_d"> pattern;
 
         std::vector<TestClass> tests_vec;
         
@@ -277,13 +277,13 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec.emplace_back(TestClass(3, 4, 5.0, {6.0f, 7.0f, 8.0f}));
             tests_vec.emplace_back(TestClass(4, 5, 6.0, {7.0f, 8.0f, 9.0f}));
 
-            comm.send(mppi::Destination(1), mppi::Tag(0), data_pattern, tests_vec);
+            comm.send(mppi::Destination(1), mppi::Tag(0), pattern, tests_vec);
         }
         else
         {
             tests_vec.resize(4);
 
-            comm.recv(mppi::Source(0), mppi::Tag(0), data_pattern, tests_vec);
+            comm.recv(mppi::Source(0), mppi::Tag(0), pattern, tests_vec);
 
             REQUIRE(tests_vec[0].get_a() == 1);
             REQUIRE(tests_vec[1].get_a() == 2);
@@ -302,7 +302,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         }
     }
 
-    SECTION("Sending a view of an stl container with a DataPattern")
+    SECTION("Sending a view of an stl container with a Pattern")
     {
         class TestClass
         {
@@ -324,7 +324,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             int _d;
         };
 
-        constexpr mppi::DataPattern<TestClass, "_a", "_b", "_d"> data_pattern;
+        constexpr mppi::Pattern<TestClass, "_a", "_b", "_d"> pattern;
 
         std::vector<TestClass> tests_vec;
         
@@ -335,13 +335,13 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec.emplace_back(TestClass({6.0, 7.0}, 4.0, 'y', 5));
             tests_vec.emplace_back(TestClass({7.0, 8.0}, 5.0, 'z', 6));
 
-            comm.send(mppi::Destination(1), mppi::Tag(0), data_pattern, tests_vec | std::ranges::views::all);
+            comm.send(mppi::Destination(1), mppi::Tag(0), pattern, tests_vec | std::ranges::views::all);
         }
         else
         {
             tests_vec.resize(4);
 
-            comm.recv(mppi::Source(0), mppi::Tag(0), data_pattern, tests_vec | std::ranges::views::all);
+            comm.recv(mppi::Source(0), mppi::Tag(0), pattern, tests_vec | std::ranges::views::all);
 
             REQUIRE(std::abs(tests_vec[0].get_a()[0] - 4.0) < 0.00001);
             REQUIRE(std::abs(tests_vec[1].get_a()[0] - 5.0) < 0.00001);
@@ -360,7 +360,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         }
     }
 
-    SECTION("Sending an entire stl container with a dynamic DataPattern")
+    SECTION("Sending an entire stl container with a dynamic Pattern")
     {
         class TestClass
         {
@@ -392,9 +392,9 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec.emplace_back(TestClass(3, 4, 5.0, {6.0f}));
             tests_vec.emplace_back(TestClass(4, 5, 6.0, {7.0f, 8.0f, 9.0f, 10.0f, 11.0f}));
 
-            mppi::DataPattern<TestClass, "_a", "_d"> data_pattern(tests_vec);
+            mppi::Pattern<TestClass, "_a", "_d"> pattern(tests_vec);
 
-            comm.send(mppi::Destination(1), mppi::Tag(0), data_pattern, tests_vec);
+            comm.send(mppi::Destination(1), mppi::Tag(0), pattern, tests_vec);
         }
         else
         {
@@ -404,9 +404,9 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec[2] = TestClass(0, 0, 0.0, {0.0f});
             tests_vec[3] = TestClass(0, 0, 0.0, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
 
-            mppi::DataPattern<TestClass, "_a", "_d"> data_pattern(tests_vec);
+            mppi::Pattern<TestClass, "_a", "_d"> pattern(tests_vec);
 
-            comm.recv(mppi::Source(0), mppi::Tag(0), data_pattern, tests_vec);
+            comm.recv(mppi::Source(0), mppi::Tag(0), pattern, tests_vec);
 
             REQUIRE(tests_vec[0].get_a() == 1);
             REQUIRE(tests_vec[1].get_a() == 2);
@@ -437,7 +437,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         }
     }
 
-    SECTION("Sending an entire stl container with a dynamic, non-consecutive DataPattern")
+    SECTION("Sending an entire stl container with a dynamic, non-consecutive Pattern")
     {
         class TestClass
         {
@@ -469,9 +469,9 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec.emplace_back(TestClass(3, 4, 5.0, {6.0f}));
             tests_vec.emplace_back(TestClass(4, 5, 6.0, {7.0f, 8.0f, 9.0f, 10.0f, 11.0f}));
 
-            mppi::DataPattern<TestClass, "_a", "_d"> data_pattern(tests_vec);
+            mppi::Pattern<TestClass, "_a", "_d"> pattern(tests_vec);
 
-            comm.send(mppi::Destination(1), mppi::Tag(0), data_pattern, tests_vec);
+            comm.send(mppi::Destination(1), mppi::Tag(0), pattern, tests_vec);
         }
         else
         {
@@ -481,9 +481,9 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec[2] = TestClass(0, 0, 0.0, {0.0f});
             tests_vec[3] = TestClass(0, 0, 0.0, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
 
-            mppi::DataPattern<TestClass, "_a", "_d"> data_pattern(tests_vec);
+            mppi::Pattern<TestClass, "_a", "_d"> pattern(tests_vec);
 
-            comm.recv(mppi::Source(0), mppi::Tag(0), data_pattern, tests_vec);
+            comm.recv(mppi::Source(0), mppi::Tag(0), pattern, tests_vec);
 
             REQUIRE(tests_vec[0].get_a() == 1);
             REQUIRE(tests_vec[1].get_a() == 2);
@@ -519,7 +519,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         }
     }
 
-    SECTION("ISending an entire stl container with a DataPattern")
+    SECTION("ISending an entire stl container with a Pattern")
     {
         class TestClass
         {
@@ -541,7 +541,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             std::array<float, 3> _d {};
         };
 
-        constexpr mppi::DataPattern<TestClass, "_a", "_d"> data_pattern;
+        constexpr mppi::Pattern<TestClass, "_a", "_d"> pattern;
 
         std::vector<TestClass> tests_vec;
         
@@ -552,14 +552,14 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec.emplace_back(TestClass(3, 4, 5.0, {6.0f, 7.0f, 8.0f}));
             tests_vec.emplace_back(TestClass(4, 5, 6.0, {7.0f, 8.0f, 9.0f}));
 
-            auto request = comm.isend(mppi::Destination(1), mppi::Tag(0), data_pattern, tests_vec | std::ranges::views::all);
+            auto request = comm.isend(mppi::Destination(1), mppi::Tag(0), pattern, tests_vec | std::ranges::views::all);
             comm.wait(request);
         }
         else
         {
             tests_vec.resize(4);
 
-            auto request = comm.irecv(mppi::Source(0), mppi::Tag(0), data_pattern, tests_vec | std::ranges::views::all);
+            auto request = comm.irecv(mppi::Source(0), mppi::Tag(0), pattern, tests_vec | std::ranges::views::all);
             comm.wait(request);
 
             REQUIRE(tests_vec[0].get_a() == 1);

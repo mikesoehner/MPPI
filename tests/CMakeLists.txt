@@ -11,13 +11,13 @@ target_compile_features(amodes_tests
             cxx_std_23)
 
 # These tests can use the Catch2-provided main
-add_executable(datapattern_tests datapattern_tests.cpp)
-target_link_libraries(datapattern_tests 
+add_executable(pattern_tests pattern_tests.cpp)
+target_link_libraries(pattern_tests 
     PRIVATE 
         Catch2::Catch2WithMain
         MPI::MPI_CXX
         mppi::mppi)
-target_compile_features(datapattern_tests
+target_compile_features(pattern_tests
         PRIVATE
             cxx_std_23)
 
@@ -70,4 +70,4 @@ include(CTest)
 include(Catch)
 # catch_discover_tests(custom-main-tests)
 catch_discover_tests(amodes_tests)
-catch_discover_tests(datapattern_tests)
+catch_discover_tests(pattern_tests)

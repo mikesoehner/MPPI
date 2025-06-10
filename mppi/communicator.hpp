@@ -91,7 +91,7 @@ namespace mppi
         }
 
         template<is_send_or_recv SR, typename D, typename T, StringLiteral... Identifiers, are_input_ranges... Ranges>
-        Request(SR, D data, MPI_Request request, DataPattern<T, Identifiers...> data_pattern, Ranges&... ranges)
+        Request(SR, D data, MPI_Request request, Pattern<T, Identifiers...> pattern, Ranges&... ranges)
             : _mpi_request(request)
         {
             // if it is a recv request, we have to get the data back
@@ -99,7 +99,7 @@ namespace mppi
             {
                 auto data_ptr = std::make_shared<D>(std::move(data));
                 auto tuple_ptr = std::make_shared<std::tuple<Ranges...>>(std::make_tuple(ranges...));
-                auto pattern_ptr = std::make_shared<DataPattern<T, Identifiers...>>(std::move(data_pattern));
+                auto pattern_ptr = std::make_shared<Pattern<T, Identifiers...>>(std::move(pattern));
 
                 _retrieve_data = [data_ptr = std::move(data_ptr), tuple_ptr = std::move(tuple_ptr), pattern_ptr = std::move(pattern_ptr)]
                 {
@@ -153,16 +153,16 @@ namespace mppi
     
         template<typename T, StringLiteral... Identifiers, typename... Rs>
             requires are_only_ranges<Rs...>
-        void send(Destination destination, Tag tag, DataPattern<T, Identifiers...> const& data_pattern, Rs&... ranges)
+        void send(Destination destination, Tag tag, Pattern<T, Identifiers...> const& pattern, Rs&... ranges)
         {
-            Data data(Send{}, _pool, data_pattern, ranges...);
+            Data data(Send{}, _pool, pattern, ranges...);
             MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm);
         }
     
         template<typename T, StringLiteral... Identifiers, are_only_views... Vs>
-        void send(Destination destination, Tag tag, DataPattern<T, Identifiers...> const& data_pattern, Vs... views)
+        void send(Destination destination, Tag tag, Pattern<T, Identifiers...> const& pattern, Vs... views)
         {
-            Data data(Send{}, _pool, data_pattern, views...);
+            Data data(Send{}, _pool, pattern, views...);
             MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm);
         }
     
@@ -189,23 +189,23 @@ namespace mppi
         }
     
         template<typename T, StringLiteral... Identifiers, are_only_ranges... Rs>
-        auto recv(Source source, Tag tag, DataPattern<T, Identifiers...> const& data_pattern, Rs&... ranges)
+        auto recv(Source source, Tag tag, Pattern<T, Identifiers...> const& pattern, Rs&... ranges)
         {
-            Data data(Recv{}, _pool, data_pattern, ranges...);
+            Data data(Recv{}, _pool, pattern, ranges...);
     
             MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source.get(), tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
     
-            data.retrieve_data(data_pattern , ranges...);
+            data.retrieve_data(pattern , ranges...);
         }
     
         template<typename T, StringLiteral... Identifiers, are_only_views... Vs>
-        auto recv(Source source, Tag tag, DataPattern<T, Identifiers...> const& data_pattern, Vs... views)
+        auto recv(Source source, Tag tag, Pattern<T, Identifiers...> const& pattern, Vs... views)
         {
-            Data data(Recv{}, _pool, data_pattern, views...);
+            Data data(Recv{}, _pool, pattern, views...);
     
             MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source.get(), tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
     
-            data.retrieve_data(data_pattern , views...);
+            data.retrieve_data(pattern , views...);
         }
 
         template<typename... Ts>
@@ -238,25 +238,25 @@ namespace mppi
 
         template<typename T, StringLiteral... Identifiers, typename... Rs>
             requires are_fundamentals<Rs...>  || are_only_ranges<Rs...>
-        auto isend(Destination destination, Tag tag, DataPattern<T, Identifiers...> const& data_pattern, Rs&... ranges)
+        auto isend(Destination destination, Tag tag, Pattern<T, Identifiers...> const& pattern, Rs&... ranges)
         {
             MPI_Request mpi_request;
-            Data data(Send{}, _pool, data_pattern, ranges...);
+            Data data(Send{}, _pool, pattern, ranges...);
 
             MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm, &mpi_request);
 
-            return Request(Send{}, std::move(data), std::move(mpi_request), std::move(data_pattern), ranges...);
+            return Request(Send{}, std::move(data), std::move(mpi_request), std::move(pattern), ranges...);
         }
 
         template<typename T, StringLiteral... Identifiers, are_only_views... Vs>
-        auto isend(Destination destination, Tag tag, DataPattern<T, Identifiers...> const& data_pattern, Vs... views)
+        auto isend(Destination destination, Tag tag, Pattern<T, Identifiers...> const& pattern, Vs... views)
         {
             MPI_Request mpi_request;
-            Data data(Send{}, _pool, data_pattern, views...);
+            Data data(Send{}, _pool, pattern, views...);
 
             MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm, &mpi_request);
 
-            return Request(Send{}, std::move(data), std::move(mpi_request), std::move(data_pattern), views...);
+            return Request(Send{}, std::move(data), std::move(mpi_request), std::move(pattern), views...);
         }
 
         template<typename... Ts>
@@ -289,25 +289,25 @@ namespace mppi
 
         template<typename T, StringLiteral... Identifiers, typename... Rs>
             requires are_fundamentals<Rs...> || are_only_ranges<Rs...>
-        auto irecv(Source source, Tag tag, DataPattern<T, Identifiers...> const& data_pattern, Rs&... ranges)
+        auto irecv(Source source, Tag tag, Pattern<T, Identifiers...> const& pattern, Rs&... ranges)
         {
             MPI_Request mpi_request;
-            Data data(Recv{}, _pool, data_pattern, ranges...);
+            Data data(Recv{}, _pool, pattern, ranges...);
 
             MPI_Irecv(data.get_data(), data.get_count(), data.get_type(), source.get(), tag.get(), _mpi_comm, &mpi_request);
 
-            return Request(Recv{}, std::move(data), std::move(mpi_request), std::move(data_pattern), ranges...);
+            return Request(Recv{}, std::move(data), std::move(mpi_request), std::move(pattern), ranges...);
         }
 
         template<typename T, StringLiteral... Identifiers, are_only_views... Vs>
-        auto irecv(Source source, Tag tag, DataPattern<T, Identifiers...> const& data_pattern, Vs... views)
+        auto irecv(Source source, Tag tag, Pattern<T, Identifiers...> const& pattern, Vs... views)
         {
             MPI_Request mpi_request;
-            Data data(Recv{}, _pool, data_pattern, views...);
+            Data data(Recv{}, _pool, pattern, views...);
 
             MPI_Irecv(data.get_data(), data.get_count(), data.get_type(), source.get(), tag.get(), _mpi_comm, &mpi_request);
 
-            return Request(Recv{}, std::move(data), std::move(mpi_request), std::move(data_pattern), views...);
+            return Request(Recv{}, std::move(data), std::move(mpi_request), std::move(pattern), views...);
         }
 
         auto wait(Request& request)

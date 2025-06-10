@@ -44,10 +44,10 @@ int main(int argc, char** argv)
 
     MPI_Status reqstat;
 
-    // DataPattern is not dynamic because one of the requested members has a dynamic size
-    // /*constexpr */DataPattern<TestClass, "_a", "_b", "_d", "_f"> data_pattern;
+    // Pattern is not dynamic because one of the requested members has a dynamic size
+    // /*constexpr */Pattern<TestClass, "_a", "_b", "_d", "_f"> pattern;
 
-    auto type_size = 72;//data_pattern.get_size();
+    auto type_size = 72;//pattern.get_size();
     
     size_t min_message_size = type_size;
     size_t max_message_size = 4'194'304;
@@ -71,8 +71,8 @@ int main(int argc, char** argv)
         std::vector<TestClass> send_buf(nb_elements/*, TestClass(1, 2, 3.0, {4.0f, 5.6f, 7.8f}, {6.2f, 5.7f, 8.4f}, {1.2f, 2.3f, 3.4f})*/);
         std::vector<TestClass> recv_buf(nb_elements/*, TestClass(1, 2, 3.0, {4.0f, 5.6f, 7.8f}, {6.2f, 5.7f, 8.4f}, {1.2f, 2.3f, 3.4f})*/);
         
-        // DataPattern is not dynamic because one of the requested members has a dynamic size
-        mppi::DataPattern<TestClass, "_id", "_cid", "_r", "_q"> data_pattern(send_buf);
+        // Pattern is not dynamic because one of the requested members has a dynamic size
+        mppi::Pattern<TestClass, "_id", "_cid", "_r", "_q"> pattern(send_buf);
         //
         MPI_Barrier(MPI_COMM_WORLD);
 
@@ -85,16 +85,16 @@ int main(int argc, char** argv)
             {
                 double time_start = MPI_Wtime();
 
-                comm.send(mppi::Destination(1), mppi::Tag(1), data_pattern, send_buf);
-                comm.recv(mppi::Source(1), mppi::Tag(1), data_pattern, recv_buf);
+                comm.send(mppi::Destination(1), mppi::Tag(1), pattern, send_buf);
+                comm.recv(mppi::Source(1), mppi::Tag(1), pattern, recv_buf);
 
                 double time_end = MPI_Wtime();
                 time_total += time_end - time_start;
             }
             else if (comm.get_rank() == 1)
             {
-                comm.recv(mppi::Source(0), mppi::Tag(1), data_pattern, recv_buf);
-                comm.send(mppi::Destination(0), mppi::Tag(1), data_pattern, send_buf);
+                comm.recv(mppi::Source(0), mppi::Tag(1), pattern, recv_buf);
+                comm.send(mppi::Destination(0), mppi::Tag(1), pattern, send_buf);
             }
         }
 

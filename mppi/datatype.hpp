@@ -13,7 +13,7 @@
 
 #include "parameter_pack_helpers.hpp"
 #include "custom_concepts.hpp"
-#include "datapattern.hpp"
+#include "pattern.hpp"
 #include "reflection_helpers.hpp"
 
 #include "mpi.h"
@@ -225,24 +225,24 @@ namespace mppi
                 using T = decltype(type);
 
                 if constexpr (has_only_trivially_copyable_types<T>)
-                    return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size<T>());
+                    return Pattern<T, expand_indices<Indices>() ...>(calc_packed_size<T>());
                 else
-                    return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size_with_container<T>(ranges...));
+                    return Pattern<T, expand_indices<Indices>() ...>(calc_packed_size_with_container<T>(ranges...));
             };
 
-            auto data_pattern = lambda(BufferType{}, indices);
+            auto pattern = lambda(BufferType{}, indices);
 
             // resize _buffer
             if constexpr (has_only_trivially_copyable_types<BufferType>)
-                _buffer.resize(ranges_size(ranges...) * data_pattern.get_size());
+                _buffer.resize(ranges_size(ranges...) * pattern.get_size());
             else
-                _buffer.resize(data_pattern.get_size());
+                _buffer.resize(pattern.get_size());
             // check if we want to send and have to copy the data
             if constexpr ( std::is_same_v<SR, Send>)
             {
                 // copy data
                 constexpr size_t offset = 0;
-                fill_pattern(data_pattern, offset, ranges...);
+                fill_pattern(pattern, offset, ranges...);
             }
         }
 
@@ -256,15 +256,15 @@ namespace mppi
                 using T = decltype(type);
 
                 if constexpr (has_only_trivially_copyable_types<T>)
-                    return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size<T>());
+                    return Pattern<T, expand_indices<Indices>() ...>(calc_packed_size<T>());
                 else
-                    return DataPattern<T, expand_indices<Indices>() ...>(calc_packed_size_with_container<T>(ranges...));
+                    return Pattern<T, expand_indices<Indices>() ...>(calc_packed_size_with_container<T>(ranges...));
             };
 
-            auto data_pattern = lambda(BufferType{}, indices);
+            auto pattern = lambda(BufferType{}, indices);
 
             size_t offset = 0;
-            fill_buffer(data_pattern, offset, ranges...);
+            fill_buffer(pattern, offset, ranges...);
         }
         
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -358,17 +358,17 @@ namespace mppi
     /* ------------------------------ Specialization: single range with trivial Pattern ------------------------------ */
     template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, typename OT, StringLiteral... Identifiers, std::ranges::input_range R>
         requires std::ranges::contiguous_range<R> && is_value_type_trivially_copyable<R> && // Range has to be contigous && value type of range has to be trivially copyable
-                std::is_trivially_copyable_v<OT> && (!are_holes<OT, Identifiers...>())      // Given DataPattern must be rivial, i.e. contain all members of OriginalType
-    class Data<SR, MemRes, DataPattern<OT, Identifiers...>, R>
+                std::is_trivially_copyable_v<OT> && (!are_holes<OT, Identifiers...>())      // Given Pattern must be rivial, i.e. contain all members of OriginalType
+    class Data<SR, MemRes, Pattern<OT, Identifiers...>, R>
     {
     public:
-        Data(SR, MemRes&, DataPattern<OT, Identifiers...> const& data_pattern, R& range)
+        Data(SR, MemRes&, Pattern<OT, Identifiers...> const& pattern, R& range)
         {
             _buffer_ptr = get_buffer_ptr(range);
             _buffer_size = static_cast<int>(ranges_size(range));
         }
 
-        void retrieve_data(DataPattern<OT, Identifiers...> const& data_pattern, R& range)
+        void retrieve_data(Pattern<OT, Identifiers...> const& pattern, R& range)
         {
             if (_buffer_ptr != get_buffer_ptr(range))
                 copy_to_range(range);
@@ -394,34 +394,34 @@ namespace mppi
     };
 
 
-    /* ------------------------------ Specialization: ranges with DataPattern ------------------------------ */
+    /* ------------------------------ Specialization: ranges with Pattern ------------------------------ */
     template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, typename T, StringLiteral... Identifiers, are_input_ranges... Rs>
         requires are_same_types<Rs...>      // value type of the ranges needs to be the same
-    class Data<SR, MemRes, DataPattern<T, Identifiers...>, Rs...>
+    class Data<SR, MemRes, Pattern<T, Identifiers...>, Rs...>
     {
     public:
         // constructor that fills the internal _buffer
-        Data(SR, MemRes& mem_res, DataPattern<T, Identifiers...> const& data_pattern, Rs&... ranges)
+        Data(SR, MemRes& mem_res, Pattern<T, Identifiers...> const& pattern, Rs&... ranges)
             : _buffer{ &mem_res }
         {
             // resize _buffer
             if constexpr (has_only_trivially_copyable_types<T, Identifiers...>)
-                _buffer.resize(ranges_size(ranges...) * data_pattern.get_size());
+                _buffer.resize(ranges_size(ranges...) * pattern.get_size());
             else
-                _buffer.resize(data_pattern.get_size());
+                _buffer.resize(pattern.get_size());
             // check if we want to send and have to copy the data
             if constexpr ( std::is_same_v<SR, Send>)
             {
                 // copy data
                 constexpr size_t offset = 0;
-                fill_pattern(data_pattern, offset, ranges...);
+                fill_pattern(pattern, offset, ranges...);
             }
         }
 
-        void retrieve_data(DataPattern<T, Identifiers...> const& data_pattern, Rs&... ranges)
+        void retrieve_data(Pattern<T, Identifiers...> const& pattern, Rs&... ranges)
         {
             size_t offset = 0;
-            fill_buffer(data_pattern, offset, ranges...);
+            fill_buffer(pattern, offset, ranges...);
         }
         
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }

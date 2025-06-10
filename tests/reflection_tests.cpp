@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include "datapattern.hpp"
+#include "pattern.hpp"
 #include "datatype.hpp"
 
 TEST_CASE( "Reflection functionality", "[Reflection]" )
@@ -893,16 +893,16 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
 
         std::pmr::monotonic_buffer_resource mem_res {};
 
-        mppi::DataPattern<X, "_a", "_d"> data_pattern(xs);
+        mppi::Pattern<X, "_a", "_d"> pattern(xs);
 
-        mppi::Data data(mppi::Send{}, mem_res, data_pattern, xs);
+        mppi::Data data(mppi::Send{}, mem_res, pattern, xs);
 
         std::array<X, 3> xs_copy;
         xs_copy[0] = X(' ', {0, 0});
         xs_copy[1] = X(' ', {0, 0, 0, 0});
         xs_copy[2] = X(' ', {0, 0, 0});
 
-        data.retrieve_data(data_pattern, xs_copy);
+        data.retrieve_data(pattern, xs_copy);
 
         REQUIRE(xs_copy[0].get_a() == 'a');
         REQUIRE(xs_copy[1].get_a() == 'b');

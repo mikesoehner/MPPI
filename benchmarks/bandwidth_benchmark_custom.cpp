@@ -54,17 +54,17 @@ int main(int argc, char** argv)
     if(comm.get_rank() == 0)
         std::cout << "# OSU Inpired MPI Bandwidth Test\n";
 
-    constexpr mppi::DataPattern<CustomType, "_x", "_y", "_n"> custom_pattern;
-    constexpr mppi::DataPattern<MoleculeType, "_id", "_cid", "_r", "_q"> mol_pattern;
+    constexpr mppi::Pattern<CustomType, "_x", "_y", "_n"> custom_pattern;
+    constexpr mppi::Pattern<MoleculeType, "_id", "_cid", "_r", "_q"> mol_pattern;
 
-    std::tuple data_patterns {custom_pattern, mol_pattern};
+    std::tuple patterns {custom_pattern, mol_pattern};
 
-    constexpr auto tuple_size = std::tuple_size_v<decltype(data_patterns)>;
+    constexpr auto tuple_size = std::tuple_size_v<decltype(patterns)>;
     std::vector<std::array<char, 128>> type_names{{"Custom Type"}, {"Molecule Type"}};
 
-    auto benchmark = [&comm]<typename Pattern>(Pattern data_pattern, std::array<char, 128>& type_name)
+    auto benchmark = [&comm]<typename Pattern>(Pattern pattern, std::array<char, 128>& type_name)
     {
-        auto type_size = data_pattern.get_size();
+        auto type_size = pattern.get_size();
 
         size_t min_message_size = type_size;
         size_t max_message_size = 4'194'304;
@@ -105,7 +105,7 @@ int main(int argc, char** argv)
                     double time_start = MPI_Wtime();
 
                     for (size_t j = 0; j < window_size; j++)
-                        requests[j] = comm.isend(mppi::Destination(1), mppi::Tag(99), data_pattern, send_buf | std::ranges::views::all);
+                        requests[j] = comm.isend(mppi::Destination(1), mppi::Tag(99), pattern, send_buf | std::ranges::views::all);
 
                     comm.waitall(requests);
 
@@ -118,7 +118,7 @@ int main(int argc, char** argv)
                 else if (comm.get_rank() == 1)
                 {
                     for (size_t j = 0; j < window_size; j++)
-                        requests[j] = comm.irecv(mppi::Source(0), mppi::Tag(99), data_pattern, recv_buf | std::ranges::views::all);
+                        requests[j] = comm.irecv(mppi::Source(0), mppi::Tag(99), pattern, recv_buf | std::ranges::views::all);
                     
                     comm.waitall(requests);
 
@@ -144,7 +144,7 @@ int main(int argc, char** argv)
         (benchmark(std::get<Ids>(tuple), type_names[Ids]), ...);
     };
 
-    wrapper(data_patterns, type_names, std::make_index_sequence<tuple_size>{});
+    wrapper(patterns, type_names, std::make_index_sequence<tuple_size>{});
 
 
     MPI_Finalize();

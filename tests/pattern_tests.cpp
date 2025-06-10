@@ -1,10 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
-#include "datapattern.hpp"
+#include "pattern.hpp"
 #include "datatype.hpp"
 // #include "communicator.hpp"
 
-TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
+TEST_CASE( "Pattern class functionality", "[Pattern]" )
 {
     class Test
     {
@@ -30,7 +30,7 @@ TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
     {
         Test test(1, 2, 3.0, {4.0f, 5.0f, 6.0f});
 
-        constexpr mppi::DataPattern<Test, "_a", "_c"> data_pattern;
+        constexpr mppi::Pattern<Test, "_a", "_c"> pattern;
 
         struct Destination
         {
@@ -41,7 +41,7 @@ TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
         Destination dest;
 
         size_t offset = 0;
-        data_pattern.pack(reinterpret_cast<std::byte*>(&dest), &test, offset);
+        pattern.pack(reinterpret_cast<std::byte*>(&dest), &test, offset);
 
         REQUIRE(1 == dest.a);
         REQUIRE(std::abs(3.0 - dest.c) < 0.0001);
@@ -56,11 +56,11 @@ TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
         tests.emplace_back(Test(3, 4, 5.0, {6.0f, 7.0f, 8.0f}));
         tests.emplace_back(Test(4, 5, 6.0, {7.0f, 8.0f, 9.0f}));
 
-        constexpr mppi::DataPattern<Test, "_a", "_c", "_d"> data_pattern;
+        constexpr mppi::Pattern<Test, "_a", "_c", "_d"> pattern;
 
         std::pmr::monotonic_buffer_resource mem_res {};
         auto view = tests | std::ranges::views::all;
-        mppi::Data data(mppi::Send{}, mem_res, data_pattern, tests);
+        mppi::Data data(mppi::Send{}, mem_res, pattern, tests);
 
         // reset original vector
         tests[0] = Test{};
@@ -68,7 +68,7 @@ TEST_CASE( "DataPattern class functionality", "[DataPattern]" )
         tests[2] = Test{};
         tests[3] = Test{};
 
-        data.retrieve_data(data_pattern, tests);
+        data.retrieve_data(pattern, tests);
 
         REQUIRE(tests[0].get_a() == 1);
         REQUIRE(tests[1].get_a() == 2);
