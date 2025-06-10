@@ -181,6 +181,69 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         }
     }
 
+    SECTION("Sending an entire stl container with a DataPattern without holes")
+    {
+        class TestClass
+        {
+        public:
+            TestClass() = default;
+            TestClass(int a, int b, double c, std::array<float, 3> d)
+                : _a(a), _b(b), _c(c), _d(d)
+            {}
+    
+            int& get_a() { return _a; }
+            int& get_b() { return _b; }
+            double& get_c() { return _c; }
+            std::array<float, 3>& get_d() { return _d; }
+    
+        private:
+            int _a {};
+            int _b {};
+            double _c {};
+            std::array<float, 3> _d {};
+        };
+
+        constexpr mppi::DataPattern<TestClass, "_a", "_b", "_c", "_d"> data_pattern;
+
+        std::vector<TestClass> tests_vec;
+        
+        if (comm.get_rank() == 0)
+        {
+            tests_vec.emplace_back(TestClass(1, 2, 3.0, {4.0f, 5.0f, 6.0f}));
+            tests_vec.emplace_back(TestClass(2, 3, 4.0, {5.0f, 6.0f, 7.0f}));
+            tests_vec.emplace_back(TestClass(3, 4, 5.0, {6.0f, 7.0f, 8.0f}));
+            tests_vec.emplace_back(TestClass(4, 5, 6.0, {7.0f, 8.0f, 9.0f}));
+
+            comm.send(1, mppi::Tag(0), data_pattern, tests_vec);
+        }
+        else
+        {
+            tests_vec.resize(4);
+
+            comm.recv(0, mppi::Tag(0), data_pattern, tests_vec);
+
+            REQUIRE(tests_vec[0].get_a() == 1);
+            REQUIRE(tests_vec[1].get_a() == 2);
+            REQUIRE(tests_vec[2].get_a() == 3);
+            REQUIRE(tests_vec[3].get_a() == 4);
+
+            REQUIRE(tests_vec[0].get_b() == 2);
+            REQUIRE(tests_vec[1].get_b() == 3);
+            REQUIRE(tests_vec[2].get_b() == 4);
+            REQUIRE(tests_vec[3].get_b() == 5);
+
+            REQUIRE(std::abs(tests_vec[0].get_c() - 3.0f) < 0.00001);
+            REQUIRE(std::abs(tests_vec[1].get_c() - 4.0f) < 0.00001);
+            REQUIRE(std::abs(tests_vec[2].get_c() - 5.0f) < 0.00001);
+            REQUIRE(std::abs(tests_vec[3].get_c() - 6.0f) < 0.00001);
+
+            REQUIRE(std::abs(tests_vec[0].get_d()[0] - 4.0f) < 0.00001f);
+            REQUIRE(std::abs(tests_vec[1].get_d()[0] - 5.0f) < 0.00001f);
+            REQUIRE(std::abs(tests_vec[2].get_d()[0] - 6.0f) < 0.00001f);
+            REQUIRE(std::abs(tests_vec[3].get_d()[0] - 7.0f) < 0.00001f);
+        }
+    }
+
     SECTION("Sending an entire stl container with a DataPattern")
     {
         class TestClass

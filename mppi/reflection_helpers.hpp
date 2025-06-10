@@ -317,6 +317,18 @@ namespace mppi
     }
 
 
+    template<typename OriginalType, StringLiteral... Identifiers>
+    consteval auto are_holes()
+    {
+        // use offset + alignment to figure out if all data members have been used
+        // can use trivially copyable type, only used in context with them
+
+        constexpr auto N = are_valid_identifiers<Identifiers...>() ? sizeof...(Identifiers) : get_total_nb_members<OriginalType>();
+
+        return N != get_total_nb_members<OriginalType>();
+    }
+
+
     template <typename OriginalType, StringLiteral... Identifiers>
     consteval auto calc_offsets_in_buffer()
     {

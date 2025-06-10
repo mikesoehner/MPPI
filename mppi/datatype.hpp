@@ -355,6 +355,44 @@ namespace mppi
         int _buffer_size {};
     };
 
+    /* ------------------------------ Specialization: single range with trivial Pattern ------------------------------ */
+    template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, typename OT, StringLiteral... Identifiers, std::ranges::input_range R>
+        requires std::ranges::contiguous_range<R> && is_value_type_trivially_copyable<R> && // Range has to be contigous && value type of range has to be trivially copyable
+                std::is_trivially_copyable_v<OT> && (!are_holes<OT, Identifiers...>())      // Given DataPattern must be rivial, i.e. contain all members of OriginalType
+    class Data<SR, MemRes, DataPattern<OT, Identifiers...>, R>
+    {
+    public:
+        Data(SR, MemRes&, DataPattern<OT, Identifiers...> const& data_pattern, R& range)
+        {
+            _buffer_ptr = get_buffer_ptr(range);
+            _buffer_size = static_cast<int>(ranges_size(range));
+        }
+
+        void retrieve_data(DataPattern<OT, Identifiers...> const& data_pattern, R& range)
+        {
+            if (_buffer_ptr != get_buffer_ptr(range))
+                copy_to_range(range);
+        }
+
+        constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
+        int get_count() const { return _buffer_size * sizeof(BufferType); }
+        auto get_data() { return _buffer_ptr; }
+
+    private:
+        // underlying type of the buffer
+        typedef decltype(get_first_underlying_type<R>()) BufferType;
+
+        BufferType* get_buffer_ptr(R& range) { /*return std::addressof(*range.begin());*/ return range.data(); }
+
+        auto get_range_size(R& range) const { return std::ranges::distance(range); }
+
+        template<typename T>
+        void copy_to_range(T& range) { std::memcpy(range.data(), _buffer_ptr, _buffer_size * sizeof(BufferType)); }
+
+        BufferType* _buffer_ptr {};
+        int _buffer_size {};
+    };
+
 
     /* ------------------------------ Specialization: ranges with DataPattern ------------------------------ */
     template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, typename T, StringLiteral... Identifiers, are_input_ranges... Rs>
