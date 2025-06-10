@@ -25,7 +25,7 @@ int main(int argc, char** argv)
         auto type_size = sizeof(T);
         
         size_t min_message_size = type_size;
-        size_t max_message_size = 4'194'304 * 4;
+        size_t max_message_size = 4'194'304;
 
         if (comm.get_rank() == 0)
         {

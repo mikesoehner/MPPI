@@ -108,7 +108,7 @@ int main(int argc, char** argv)
         size_t min_message_size = type_size;
         // type_size = sizeof(MyClass);
         // min_message_size = sizeof(MyClass);
-        size_t max_message_size = 4'194'304 * 4;
+        size_t max_message_size = 4'194'304;
 
         char type_name[128];
         int resultlen {};
