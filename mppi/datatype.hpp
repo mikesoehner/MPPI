@@ -356,19 +356,19 @@ namespace mppi
     };
 
     /* ------------------------------ Specialization: single range with trivial Pattern ------------------------------ */
-    template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, typename OT, StringLiteral... Identifiers, std::ranges::input_range R>
+    template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, typename T, StringLiteral... Identifiers, std::ranges::input_range R>
         requires std::ranges::contiguous_range<R> && is_value_type_trivially_copyable<R> && // Range has to be contigous && value type of range has to be trivially copyable
-                std::is_trivially_copyable_v<OT> && (!are_holes<OT, Identifiers...>())      // Given Pattern must be rivial, i.e. contain all members of OriginalType
-    class Data<SR, MemRes, Pattern<OT, Identifiers...>, R>
+                std::is_trivially_copyable_v<T> && (is_trivial_pattern<T, Identifiers...>())      // Given Pattern must be trivial, i.e. contain all members of OriginalType
+    class Data<SR, MemRes, Pattern<T, Identifiers...>, R>
     {
     public:
-        Data(SR, MemRes&, Pattern<OT, Identifiers...> const& pattern, R& range)
+        Data(SR, MemRes&, Pattern<T, Identifiers...> const& pattern, R& range)
         {
             _buffer_ptr = get_buffer_ptr(range);
             _buffer_size = static_cast<int>(ranges_size(range));
         }
 
-        void retrieve_data(Pattern<OT, Identifiers...> const& pattern, R& range)
+        void retrieve_data(Pattern<T, Identifiers...> const& pattern, R& range)
         {
             if (_buffer_ptr != get_buffer_ptr(range))
                 copy_to_range(range);
@@ -386,8 +386,8 @@ namespace mppi
 
         auto get_range_size(R& range) const { return std::ranges::distance(range); }
 
-        template<typename T>
-        void copy_to_range(T& range) { std::memcpy(range.data(), _buffer_ptr, _buffer_size * sizeof(BufferType)); }
+        template<typename U>
+        void copy_to_range(U& range) { std::memcpy(range.data(), _buffer_ptr, _buffer_size * sizeof(BufferType)); }
 
         BufferType* _buffer_ptr {};
         int _buffer_size {};

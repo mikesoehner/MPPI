@@ -317,15 +317,44 @@ namespace mppi
     }
 
 
-    template<typename OriginalType, StringLiteral... Identifiers>
-    consteval auto are_holes()
+    // this function compares, if two identifiers are different
+    template<size_t Index0, size_t Index1, StringLiteral Identifier0, StringLiteral Identifier1>
+    consteval auto are_different_identifiers()
     {
-        // use offset + alignment to figure out if all data members have been used
-        // can use trivially copyable type, only used in context with them
+        if (Index0 == Index1)
+            return true;
+        else
+            return Identifier0 != Identifier1;
+    }
 
+    // this function calls the above function for one identifier and all others
+    template<size_t Index, StringLiteral Identifier, StringLiteral... Identifiers, size_t... Indices>
+    consteval auto are_no_duplicate_impl(std::index_sequence<Indices...>)
+    {
+        return (are_different_identifiers<Index, Indices, Identifier, Identifiers>() && ...);
+    }
+
+    // this function calls all identifiers with all other identifiers
+    template<StringLiteral... Identifiers, size_t... Indices>
+    consteval auto are_no_duplicates(std::index_sequence<Indices...> indices)
+    {
+        return (are_no_duplicate_impl<Indices, Identifiers, Identifiers...>(indices) && ...);
+    }
+
+    // functions checks if a pattern is trivial, i.e. does contain all data members of a type anyway
+    template<typename OriginalType, StringLiteral... Identifiers>
+    consteval auto is_trivial_pattern()
+    {
         constexpr auto N = are_valid_identifiers<Identifiers...>() ? sizeof...(Identifiers) : get_total_nb_members<OriginalType>();
+        constexpr auto indices = std::make_index_sequence<N>{};
 
-        return N != get_total_nb_members<OriginalType>();
+        // check if an identifier occurs twice
+        constexpr bool no_duplicates = (are_no_duplicates<Identifiers...>(indices));
+        // check if there are as many identifiers, as data members (if there are wrong identifiers, compilation will fail earlier)
+        constexpr bool same_size = N == get_total_nb_members<OriginalType>();
+
+        // if both are true a pattern of a type contains all data members of that type
+        return no_duplicates && same_size;
     }
 
 
