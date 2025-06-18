@@ -29,6 +29,12 @@ make [-j N]
 make install
 ```
 
+## Notes
+
+The main branch of MPPI uses ```std::move_only_function``` which is not available yet in clang's libc++. The compiler we used for the experimental reflection version requires libc++ and utilizes a workaround that uses ```std::function``` instead of ```std::move_only_function```. 
+
+The ```Communicator``` class combines ```std::pmr::monotonic_buffer_resource``` and ```std::pmr::unsynchronized_pool_resource``` to create a memory pool. The maximum size of an allocation that will be part of this pool is compiler-dependent, but current gcc and clang compilers set it to 4 MB. Larger allocations will still allocate memory but not reuse or free it until the end of the program, leading to memory waste. Running the benchmarks with a buffer size larger than 4 MB can quickly lead to an out-of-memory situation. Clang's libc++ sets the upper bound for an allocation size to 1 GB, which makes working with the memory pool more convenient.
+
 ## Contact
 
 Mike Söhner <mike.soehner@hlrs.de>
