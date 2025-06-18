@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.17)
 
 project(mppi
+    VERSION 0.9
     LANGUAGES CXX)
 
 find_package(MPI REQUIRED)
