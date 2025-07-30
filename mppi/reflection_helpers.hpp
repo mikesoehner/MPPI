@@ -705,6 +705,16 @@ namespace mppi
 
         return offset;
     }
+
+
+    template<typename OriginalType, StringLiteral... Identifiers, typename... Rs>
+    auto calc_packed_size_allocator_aware_container(Rs&... ranges)
+    {
+        if constexpr (are_valid_identifiers<Identifiers...>())
+            return calc_packed_size_with_container_identifier<OriginalType, Identifiers...>(ranges...);
+        else
+            return calc_packed_size_with_container<OriginalType>(ranges...);
+    }
 };
 
 #endif

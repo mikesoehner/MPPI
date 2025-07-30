@@ -90,7 +90,7 @@ int main(int argc, char** argv)
     
     auto benchmark = [&comm]<typename Pattern>(Pattern pattern, std::array<char, 128>& type_name)
     {
-        auto type_size = pattern.get_size();
+        auto type_size = pattern.get_packed_size();
         
         size_t min_message_size = type_size;
         size_t max_message_size = 4'194'304;

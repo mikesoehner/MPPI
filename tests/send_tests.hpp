@@ -392,7 +392,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec.emplace_back(TestClass(3, 4, 5.0, {6.0f}));
             tests_vec.emplace_back(TestClass(4, 5, 6.0, {7.0f, 8.0f, 9.0f, 10.0f, 11.0f}));
 
-            mppi::Pattern<TestClass, "_a", "_d"> pattern(tests_vec);
+            mppi::Pattern<TestClass, "_a", "_d"> pattern;
 
             comm.send(mppi::Destination(1), mppi::Tag(0), pattern, tests_vec);
         }
@@ -404,7 +404,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec[2] = TestClass(0, 0, 0.0, {0.0f});
             tests_vec[3] = TestClass(0, 0, 0.0, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
 
-            mppi::Pattern<TestClass, "_a", "_d"> pattern(tests_vec);
+            mppi::Pattern<TestClass, "_a", "_d"> pattern;
 
             comm.recv(mppi::Source(0), mppi::Tag(0), pattern, tests_vec);
 
@@ -469,7 +469,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec.emplace_back(TestClass(3, 4, 5.0, {6.0f}));
             tests_vec.emplace_back(TestClass(4, 5, 6.0, {7.0f, 8.0f, 9.0f, 10.0f, 11.0f}));
 
-            mppi::Pattern<TestClass, "_a", "_d"> pattern(tests_vec);
+            mppi::Pattern<TestClass, "_a", "_d"> pattern;
 
             comm.send(mppi::Destination(1), mppi::Tag(0), pattern, tests_vec);
         }
@@ -481,7 +481,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec[2] = TestClass(0, 0, 0.0, {0.0f});
             tests_vec[3] = TestClass(0, 0, 0.0, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
 
-            mppi::Pattern<TestClass, "_a", "_d"> pattern(tests_vec);
+            mppi::Pattern<TestClass, "_a", "_d"> pattern;
 
             comm.recv(mppi::Source(0), mppi::Tag(0), pattern, tests_vec);
 

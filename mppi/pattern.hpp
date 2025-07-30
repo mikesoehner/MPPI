@@ -18,32 +18,10 @@ namespace mppi
     class Pattern
     {
     public:
-        // Compile-time evaluated constructors
-        // This constructor takes the StringLiterals as arguments
+        // Make Pattern construction compile-time executable and check for pointers
         consteval Pattern()
-            requires has_only_trivially_copyable_types<OriginalType, Identifiers...> && is_without_pointers<OriginalType, Identifiers...>
-            : _size(calc_packed_size<OriginalType, Identifiers...>())
-        {}
-    
-        // This constructor takes predetermined arrays and works on them
-        consteval Pattern(size_t size)
-            requires has_only_trivially_copyable_types<OriginalType> && is_without_pointers<OriginalType, Identifiers...>
-            : _size(size)
-        {}
-        
-        // Run-time evaluated constructors
-        // This constructor takes the StringLiterals as arguments (the ranges are required to calculate the dynamic ranges)
-        template<are_input_ranges... Rs>
-        Pattern(Rs... ranges)
-            requires (!has_only_trivially_copyable_types<OriginalType, Identifiers...>) && is_without_pointers<OriginalType, Identifiers...>
-            : _size(calc_packed_size_with_container_identifier<OriginalType, Identifiers...>(ranges...))
-        {}
-    
-        // This constructor takes predetermined arrays and works on them
-        Pattern(size_t size)
-            requires (!has_only_trivially_copyable_types<OriginalType>) && is_without_pointers<OriginalType, Identifiers...>
-            : _size(size)
-        {}
+            requires is_without_pointers<OriginalType, Identifiers...>
+        = default;
     
         size_t pack(std::byte* dest, OriginalType const* base, size_t offset) const
         {
@@ -71,7 +49,27 @@ namespace mppi
                 return copy_dynamic<false>(reinterpret_cast<std::byte*>(base), src, offset, Indices);
         }
     
-        constexpr auto get_size() const { return _size; }
+        // Return the size of one packed element. This size does not exist for types with allocator-aware containers,
+        // as the size of one packed element varies
+        constexpr auto get_packed_size() const
+            requires has_only_trivially_copyable_types<OriginalType, Identifiers...>
+        { return calc_packed_size<OriginalType, Identifiers...>(); }
+
+        // Return the size of the combined packed ranges
+        template<are_input_ranges... Rs>
+            requires has_only_trivially_copyable_types<OriginalType, Identifiers...> && (sizeof...(Rs) != 0)
+        inline auto get_packed_ranges_size(Rs... ranges) const 
+        {
+            return ranges_size(ranges...) * calc_packed_size<OriginalType, Identifiers...>();
+        }
+
+        // Return the size of the combined packed ranges (for elements with allocator-aware containers)
+        template<are_input_ranges... Rs>
+            requires (!has_only_trivially_copyable_types<OriginalType, Identifiers...>) && (sizeof...(Rs) != 0)
+        inline auto get_packed_ranges_size(Rs... ranges) const 
+        {
+            return calc_packed_size_allocator_aware_container<OriginalType, Identifiers...>(ranges...);
+        }
 
         using base_type = OriginalType;
     
@@ -89,7 +87,8 @@ namespace mppi
             else
                 ((std::memcpy(dest + offset_type[Indices], src + offset + offset_buffer[Indices], sizes[Indices])), ...);
     
-            return offset + _size;
+            // Cannot use get_packed_size() function here
+            return offset + calc_packed_size<OriginalType, Identifiers...>();
         }
     
     
@@ -174,11 +173,6 @@ namespace mppi
             // since in copy offset is passed by reference it is the same offset in functions called here
             return (copy_dynamic_impl<Pack, Indices>(dest, src, offset), ...);
         }
-    
-        // The size has a different meaning depending on the types in a datapattern
-        // If all types are trivialy copyable, _size is the size of one instance serialized
-        // If there is at least one allocator aware container, _size is the size of the entire range (because it is possible that one instance has a different size)
-        const size_t _size {0};
     };
 };
 

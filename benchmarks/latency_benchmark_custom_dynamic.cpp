@@ -72,7 +72,7 @@ int main(int argc, char** argv)
         std::vector<TestClass> recv_buf(nb_elements/*, TestClass(1, 2, 3.0, {4.0f, 5.6f, 7.8f}, {6.2f, 5.7f, 8.4f}, {1.2f, 2.3f, 3.4f})*/);
         
         // Pattern is not dynamic because one of the requested members has a dynamic size
-        mppi::Pattern<TestClass, "_id", "_cid", "_r", "_q"> pattern(send_buf);
+        mppi::Pattern<TestClass, "_id", "_cid", "_r", "_q"> pattern;
         //
         MPI_Barrier(MPI_COMM_WORLD);
 

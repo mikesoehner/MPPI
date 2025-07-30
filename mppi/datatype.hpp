@@ -224,19 +224,14 @@ namespace mppi
             {
                 using T = decltype(type);
 
-                if constexpr (has_only_trivially_copyable_types<T>)
-                    return Pattern<T, expand_indices<Indices>() ...>(calc_packed_size<T>());
-                else
-                    return Pattern<T, expand_indices<Indices>() ...>(calc_packed_size_with_container<T>(ranges...));
+                return Pattern<T, expand_indices<Indices>() ...>();
             };
 
             auto pattern = lambda(BufferType{}, indices);
 
             // resize _buffer
-            if constexpr (has_only_trivially_copyable_types<BufferType>)
-                _buffer.resize(ranges_size(ranges...) * pattern.get_size());
-            else
-                _buffer.resize(pattern.get_size());
+            _buffer.resize(pattern.get_packed_ranges_size(ranges...));
+
             // check if we want to send and have to copy the data
             if constexpr ( std::is_same_v<SR, Send>)
             {
@@ -248,6 +243,7 @@ namespace mppi
 
         void retrieve_data(Rs&... ranges)
         {
+            // we want to create a datatype that gets all the members of a type and it's bases
             constexpr auto N = get_total_nb_members<BufferType>();
             constexpr auto indices = std::make_index_sequence<N>{};
 
@@ -255,10 +251,7 @@ namespace mppi
             {
                 using T = decltype(type);
 
-                if constexpr (has_only_trivially_copyable_types<T>)
-                    return Pattern<T, expand_indices<Indices>() ...>(calc_packed_size<T>());
-                else
-                    return Pattern<T, expand_indices<Indices>() ...>(calc_packed_size_with_container<T>(ranges...));
+                return Pattern<T, expand_indices<Indices>() ...>();
             };
 
             auto pattern = lambda(BufferType{}, indices);
@@ -405,10 +398,8 @@ namespace mppi
             : _buffer{ &mem_res }
         {
             // resize _buffer
-            if constexpr (has_only_trivially_copyable_types<T, Identifiers...>)
-                _buffer.resize(ranges_size(ranges...) * pattern.get_size());
-            else
-                _buffer.resize(pattern.get_size());
+            _buffer.resize(pattern.get_packed_ranges_size(ranges...));
+
             // check if we want to send and have to copy the data
             if constexpr ( std::is_same_v<SR, Send>)
             {

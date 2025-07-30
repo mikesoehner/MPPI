@@ -893,7 +893,7 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
 
         std::pmr::monotonic_buffer_resource mem_res {};
 
-        mppi::Pattern<X, "_a", "_d"> pattern(xs);
+        mppi::Pattern<X, "_a", "_d"> pattern;
 
         mppi::Data data(mppi::Send{}, mem_res, pattern, xs);
 
