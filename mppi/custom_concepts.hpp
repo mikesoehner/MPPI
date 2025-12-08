@@ -64,6 +64,50 @@ namespace mppi
     
     template<typename... Ranges>
     concept are_value_types_trivially_copyable = (is_value_type_trivially_copyable<Ranges> && ...);
+
+    template<typename Container>
+    concept is_not_nested_container = requires(Container container)
+    {
+        { container.size() } -> std::same_as<size_t>;
+    };
+
+    // test
+    template<typename T>
+    concept contains_pattern = requires(T t)
+    {
+        typename T::Pattern_Type;
+    };
+
+    template<typename... Ts>
+    concept contain_patterns = (contains_pattern<Ts> && ...);
+
+
+    template<typename T, typename U>
+    consteval bool same_pattern_wrapper()
+    {
+        return std::is_same_v<typename T::Pattern_Type, typename U::Pattern_Type>;
+    };
+
+    template<typename T, typename U, typename... Ts>
+        requires (sizeof...(Ts) >= 1)
+    consteval bool same_pattern_wrapper()
+    {
+        return std::is_same_v<typename T::Pattern_Type, typename U::Pattern_Type> 
+                && same_pattern_wrapper<T, Ts...>();
+    };
+
+    template<typename T, typename... Ts>
+    consteval bool same_pattern()
+    {
+        // if there is only one pattern, it is the same as all others
+        if constexpr (sizeof...(Ts) == 0)
+            return true;
+        else
+            return same_pattern_wrapper<T, Ts...>();
+    };
+
+    template<typename... Ts>
+    concept contain_same_patterns = contain_patterns<Ts...> && same_pattern<Ts...>();
 };
 
 #endif
