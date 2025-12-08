@@ -895,14 +895,14 @@ TEST_CASE( "Reflection functionality", "[Reflection]" )
 
         mppi::Pattern<X, "_a", "_d"> pattern;
 
-        mppi::Data data(mppi::Send{}, mem_res, pattern, xs);
+        mppi::Data data(mppi::Send{}, mem_res, xs | mppi::pattern_view(pattern));
 
         std::array<X, 3> xs_copy;
         xs_copy[0] = X(' ', {0, 0});
         xs_copy[1] = X(' ', {0, 0, 0, 0});
         xs_copy[2] = X(' ', {0, 0, 0});
 
-        data.retrieve_data(pattern, xs_copy);
+        data.retrieve_data(xs_copy | mppi::pattern_view(pattern));
 
         REQUIRE(xs_copy[0].get_a() == 'a');
         REQUIRE(xs_copy[1].get_a() == 'b');

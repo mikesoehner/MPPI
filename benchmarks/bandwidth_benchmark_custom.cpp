@@ -105,7 +105,7 @@ int main(int argc, char** argv)
                     double time_start = MPI_Wtime();
 
                     for (size_t j = 0; j < window_size; j++)
-                        requests[j] = comm.isend(mppi::Destination(1), mppi::Tag(99), pattern, send_buf | std::ranges::views::all);
+                        requests[j] = comm.isend(mppi::Destination(1), mppi::Tag(99), send_buf | mppi::pattern_view(pattern));
 
                     comm.waitall(requests);
 
@@ -118,7 +118,7 @@ int main(int argc, char** argv)
                 else if (comm.get_rank() == 1)
                 {
                     for (size_t j = 0; j < window_size; j++)
-                        requests[j] = comm.irecv(mppi::Source(0), mppi::Tag(99), pattern, recv_buf | std::ranges::views::all);
+                        requests[j] = comm.irecv(mppi::Source(0), mppi::Tag(99), recv_buf | mppi::pattern_view(pattern));
                     
                     comm.waitall(requests);
 

@@ -85,16 +85,16 @@ int main(int argc, char** argv)
             {
                 double time_start = MPI_Wtime();
 
-                comm.send(mppi::Destination(1), mppi::Tag(1), pattern, send_buf);
-                comm.recv(mppi::Source(1), mppi::Tag(1), pattern, recv_buf);
+                comm.send(mppi::Destination(1), mppi::Tag(1), send_buf | mppi::pattern_view(pattern));
+                comm.recv(mppi::Source(1), mppi::Tag(1), recv_buf | mppi::pattern_view(pattern));
 
                 double time_end = MPI_Wtime();
                 time_total += time_end - time_start;
             }
             else if (comm.get_rank() == 1)
             {
-                comm.recv(mppi::Source(0), mppi::Tag(1), pattern, recv_buf);
-                comm.send(mppi::Destination(0), mppi::Tag(1), pattern, send_buf);
+                comm.recv(mppi::Source(0), mppi::Tag(1), recv_buf | mppi::pattern_view(pattern));
+                comm.send(mppi::Destination(0), mppi::Tag(1), send_buf | mppi::pattern_view(pattern));
             }
         }
 

@@ -55,6 +55,10 @@ namespace mppi
             requires has_only_trivially_copyable_types<OriginalType, Identifiers...>
         { return calc_packed_size<OriginalType, Identifiers...>(); }
 
+        constexpr auto get_packed_size() const
+            requires (!has_only_trivially_copyable_types<OriginalType, Identifiers...>)
+        { return 0; }
+
         // Return the size of the combined packed ranges
         template<are_input_ranges... Rs>
             requires has_only_trivially_copyable_types<OriginalType, Identifiers...> && (sizeof...(Rs) != 0)
@@ -70,6 +74,23 @@ namespace mppi
         {
             return calc_packed_size_allocator_aware_container<OriginalType, Identifiers...>(ranges...);
         }
+
+
+        // functions checks if a pattern is trivial, i.e. does contain all data members of a type anyway
+        consteval static auto is_trivial_pattern()
+        {
+            constexpr auto N = are_valid_identifiers<Identifiers...>() ? sizeof...(Identifiers) : get_total_nb_members<OriginalType>();
+            constexpr auto indices = std::make_index_sequence<N>{};
+
+            // check if an identifier occurs twice
+            constexpr bool no_duplicates = (are_no_duplicates<Identifiers...>(indices));
+            // check if there are as many identifiers, as data members (if there are wrong identifiers, compilation will fail earlier)
+            constexpr bool same_size = N == get_total_nb_members<OriginalType>();
+
+            // if both are true a pattern of a type contains all data members of that type
+            return no_duplicates && same_size;
+        }
+
 
         using base_type = OriginalType;
     
@@ -174,6 +195,104 @@ namespace mppi
             return (copy_dynamic_impl<Pack, Indices>(dest, src, offset), ...);
         }
     };
+
+
+
+    
+    template<std::ranges::input_range R, typename P> requires std::ranges::view<R>
+    class Pattern_View : public std::ranges::view_interface<Pattern_View<R, P>>
+    {
+    private:
+        R                                         base_ {};
+        P                                         pattern_;
+        std::ranges::iterator_t<R>                iter_start_ {std::begin(base_)};
+        std::ranges::iterator_t<R>                iter_end_ {std::end(base_)};
+    public:
+        Pattern_View() = default;
+        
+        constexpr Pattern_View(R base, P pattern)
+            : base_(base)
+            , pattern_(pattern)
+            , iter_start_(std::begin(base_))
+            , iter_end_(std::end(base_))
+        {}
+        
+        constexpr R base() const &
+        {return base_;}
+        constexpr R base() && 
+        {return std::move(base_);}
+        
+        constexpr auto begin() const
+        {return iter_start_;}
+        constexpr auto end() const
+        {return iter_end_;}
+        
+        constexpr auto size() const requires std::ranges::sized_range<const R>
+        { 
+            return std::ranges::size(base_);
+        }
+
+        constexpr auto pack(std::byte* dest, void const* base, size_t offset) const
+        {
+            return pattern_.pack(dest, base, offset);
+        }
+        
+        constexpr auto get_pattern() const
+        {
+            return pattern_;
+        }
+
+        using Pattern_Type = P;
+        // using value_type = typename R::iter_value_t;
+        using value_type = std::ranges::range_value_t<R>;
+    };
+ 
+    template<class R, typename P>
+    Pattern_View(R&& base, P pattern)
+        -> Pattern_View<std::ranges::views::all_t<R>, P>;
+
+
+    namespace details
+    {
+        template<typename P>
+        struct Pattern_View_Adaptor_Closure
+        {
+            P pattern_;
+            constexpr Pattern_View_Adaptor_Closure(P pattern): pattern_(pattern)
+            {}
+    
+            template <std::ranges::viewable_range R>
+            constexpr auto operator()(R && r) const
+            {
+                return Pattern_View(std::forward<R>(r), pattern_);
+            }
+
+            using Pattern_Type = P;
+        } ;
+    
+        struct Pattern_View_Adaptor
+        {
+            template<std::ranges::viewable_range R, typename P>
+            constexpr auto operator () (R && r, P pattern)
+            {
+                return Pattern_View( std::forward<R>(r), pattern) ;
+            }
+    
+            template<typename P>
+            constexpr auto operator () (P pattern)
+            {
+                return Pattern_View_Adaptor_Closure(pattern);
+            }
+        };
+    
+        template <std::ranges::viewable_range R, typename P>
+        constexpr auto operator | (R&& r, Pattern_View_Adaptor_Closure<P> const & a)
+        {
+            return a(std::forward<R>(r));
+        }
+    }
+
+    details::Pattern_View_Adaptor pattern_view;
 };
 
 

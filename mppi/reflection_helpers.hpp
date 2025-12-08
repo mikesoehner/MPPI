@@ -341,22 +341,6 @@ namespace mppi
         return (are_no_duplicate_impl<Indices, Identifiers, Identifiers...>(indices) && ...);
     }
 
-    // functions checks if a pattern is trivial, i.e. does contain all data members of a type anyway
-    template<typename OriginalType, StringLiteral... Identifiers>
-    consteval auto is_trivial_pattern()
-    {
-        constexpr auto N = are_valid_identifiers<Identifiers...>() ? sizeof...(Identifiers) : get_total_nb_members<OriginalType>();
-        constexpr auto indices = std::make_index_sequence<N>{};
-
-        // check if an identifier occurs twice
-        constexpr bool no_duplicates = (are_no_duplicates<Identifiers...>(indices));
-        // check if there are as many identifiers, as data members (if there are wrong identifiers, compilation will fail earlier)
-        constexpr bool same_size = N == get_total_nb_members<OriginalType>();
-
-        // if both are true a pattern of a type contains all data members of that type
-        return no_duplicates && same_size;
-    }
-
 
     template <typename OriginalType, StringLiteral... Identifiers>
     consteval auto calc_offsets_in_buffer()
