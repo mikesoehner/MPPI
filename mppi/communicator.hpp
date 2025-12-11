@@ -70,15 +70,25 @@ namespace mppi
         Request() = default;
 
         template<is_send_or_recv SR, typename D, are_input_ranges... Ranges>
-        Request(SR, D&& data, MPI_Request&& request, Ranges&... ranges)
-            : _mpi_request(std::move(request)), _retrieve_data{
-                                                            [data_ptr = std::make_shared<D>(std::move(data)),
-                                                             tuple_ptr = std::make_shared<std::tuple<Ranges...>>(std::make_tuple(ranges...))]
-                                                            {
-                                                                if constexpr (std::is_same_v<SR, Recv>)
-                                                                    std::apply([&](auto &&... args) { data_ptr->retrieve_data(args...); }, *tuple_ptr);
-                                                            } }
-        {}
+        Request(SR, D data, MPI_Request request, Ranges&... ranges)
+            : _mpi_request(request)
+        {
+            // if it is a recv request, we have to get the data back
+            if constexpr (std::is_same_v<SR, Recv>)
+            {
+                auto data_ptr = std::make_shared<D>(std::move(data));
+                auto tuple_ptr = std::make_shared<std::tuple<Ranges...>>(std::make_tuple(ranges...));
+
+                _retrieve_data = [data_ptr = std::move(data_ptr), tuple_ptr = std::move(tuple_ptr)]
+                {
+                    std::apply([&](auto &&... args) { data_ptr->retrieve_data(args...); }, *tuple_ptr);
+                };
+            }
+            else
+            {
+                _retrieve_data = [](){};
+            }        
+        }
 
         auto& get() { return _mpi_request; }
         auto retrieve_data_wrapper() { _retrieve_data(); }
