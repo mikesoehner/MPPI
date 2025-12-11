@@ -6,7 +6,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++ -freflection -fno-access-
 # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
 
 project(mppi
-    VERSION 0.10.1
+    VERSION 0.10.2
     LANGUAGES CXX)
 
 find_package(MPI REQUIRED)
