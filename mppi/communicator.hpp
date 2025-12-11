@@ -127,20 +127,20 @@ namespace mppi
             MPI_Comm_size(_mpi_comm, &_size);
         }
     
-        auto get_rank() const { return _rank; }
-        auto get_size() const { return _size; }
+        inline auto get_rank() const { return _rank; }
+        inline auto get_size() const { return _size; }
 
 
         // wrapper for fundamentals
         template<are_fundamentals... Ts>
             requires (!(std::is_reference_v<Ts> && ...))
-        void send(Destination destination, Tag tag, Ts&... fundamentals)
+        inline void send(Destination destination, Tag tag, Ts&... fundamentals)
         {
             send<Ts&...>(destination, tag, fundamentals...);
         }
         // wrapper for ranges
         template<are_only_ranges... Rs>
-        void send(Destination destination, Tag tag, Rs&... ranges)
+        inline void send(Destination destination, Tag tag, Rs&... ranges)
         {
             send(destination, tag, (ranges | std::views::all) ...);
         }
@@ -148,7 +148,7 @@ namespace mppi
         // function for sending using views
         template<typename... Vs>
             requires (are_only_views<Vs...> || (std::is_reference_v<Vs> && ...))
-        void send(Destination destination, Tag tag, Vs... views) 
+        inline void send(Destination destination, Tag tag, Vs... views) 
         {
             Data data(Send{}, _pool, views...);
             MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm);
@@ -157,13 +157,13 @@ namespace mppi
         // wrapper for fundamentals
         template<are_fundamentals... Ts>
             requires (!(std::is_reference_v<Ts> && ...))
-        void recv(Source source, Tag tag, Ts&... fundamentals)
+        inline void recv(Source source, Tag tag, Ts&... fundamentals)
         {
             recv<Ts&...>(source, tag, fundamentals...);
         }
         // wrapper for ranges
         template<are_only_ranges... Ts>
-        void recv(Source source, Tag tag, Ts&... ranges)
+        inline void recv(Source source, Tag tag, Ts&... ranges)
         {
             recv(source, tag, (ranges | std::views::all) ...);
         }
@@ -184,13 +184,13 @@ namespace mppi
         // wrapper for fundamentals
         template<are_fundamentals... Ts>
                     requires (!(std::is_reference_v<Ts> && ...))
-        auto isend(Destination destination, Tag tag, Ts&... fundamentals)
+        inline auto isend(Destination destination, Tag tag, Ts&... fundamentals)
         {
             return isend<Ts&...>(destination, tag, fundamentals...);
         }
         // wrapper for ranges
         template<are_only_ranges... Ts>
-        auto isend(Destination destination, Tag tag, Ts&... ranges)
+        inline auto isend(Destination destination, Tag tag, Ts&... ranges)
         {
             return isend(destination, tag, (ranges | std::views::all) ...);
         }
@@ -198,7 +198,7 @@ namespace mppi
         // function for non-blocking send using views
         template<typename... Vs>
             requires (are_only_views<Vs...> || (std::is_reference_v<Vs> && ...))
-        auto isend(Destination destination, Tag tag, Vs... views)
+        inline auto isend(Destination destination, Tag tag, Vs... views)
         {
             // we first need to create the Data object
             // then we can link the buffer of Data to the MPI function
@@ -215,13 +215,13 @@ namespace mppi
 
         // wrapper for fundamentals
         template<are_fundamentals... Ts>
-        auto irecv(Source source, Tag tag, Ts&... fundamentals)
+        inline auto irecv(Source source, Tag tag, Ts&... fundamentals)
         {
             return irecv<Ts&...>(source, tag, fundamentals...);
         }
         // wrapper for ranges
         template<are_only_ranges... Ts>
-        auto irecv(Source source, Tag tag, Ts&... ranges)
+        inline auto irecv(Source source, Tag tag, Ts&... ranges)
         {
             return irecv(source, tag, (ranges | std::views::all) ...);
         }
@@ -229,7 +229,7 @@ namespace mppi
         // function for non-blocking recv using views
         template<typename... Vs>
             requires (are_only_views<Vs...> || (std::is_reference_v<Vs> && ...))
-        auto irecv(Source source, Tag tag, Vs... views)
+        inline auto irecv(Source source, Tag tag, Vs... views)
         {
             // we first need to create the Data object
             // then we can link the buffer of Data to the MPI function
@@ -246,7 +246,7 @@ namespace mppi
     
     
         template<typename... Patterns, std::ranges::input_range... Rs>
-        auto iprobe_recv(Source source, Tag tag, std::tuple<Patterns, Rs>&... patterns)
+        inline auto iprobe_recv(Source source, Tag tag, std::tuple<Patterns, Rs>&... patterns)
         {
             int flag = 0;
             MPI_Status mpi_status;
@@ -302,7 +302,7 @@ namespace mppi
         //     }
         // }
         template<typename C>
-        auto waitall(C& requests)
+        inline auto waitall(C& requests)
         {
             for (auto& request : requests)
             {
