@@ -23,10 +23,9 @@ Additionally, for the tests:
 
 To build, test and install the MPPI library execute
 ```shell
-mkdir build && cd build
-cmake -DCMAKE_INSTALL_PREFIX=/my/install/prefix ..
-make [-j N] 
-make install
+cmake --preset release -B build -S . -DCMAKE_INSTALL_PREFIX=/my/install/prefix ..
+cmake --build build
+cmake --install build
 ```
 
 ## Notes
