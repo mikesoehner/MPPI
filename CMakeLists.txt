@@ -13,6 +13,9 @@ find_package(MPI REQUIRED)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+if(PROJECT_IS_TOP_LEVEL)
+    include(CTest)
+endif()
 
 add_library(mppi INTERFACE)
 target_include_directories(mppi
@@ -30,8 +33,7 @@ set(CMAKE_BUILD_TYPE "Release" CACHE STRING
         "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
 endif(NOT CMAKE_BUILD_TYPE)
     
-# only combile tests in debug mode
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
 
