@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Söhner"
+  given-names: "Mike"
+  orcid: "https://orcid.org/0009-0001-3037-7402"
+- family-names: "Niethammer"
+  given-names: "Christoph"
+  orcid: "https://orcid.org/0000-0002-3840-1016"
+title: "MPPI"
+version: 0.10.2
+doi: 10.1145/3731599.3767390
+date-released: 2025-11-15
+url: "https://https://github.com/mikesoehner/MPPI"
+preferred-citation:
+  type: conference-paper
+  authors:
+  - family-names: "Söhner"
+    given-names: "Mike"
+    orcid: "https://orcid.org/0009-0001-3037-7402"
+  - family-names: "Niethammer"
+    given-names: "Christoph"
+    orcid: "https://orcid.org/0000-0002-3840-1016"
+  doi: "10.1145/3731599.3767390"
+  journal: "Proceedings of the SC '25 Workshops of the International Conference for High Performance Computing, Networking, Storage and Analysis"
+  month: 11
+  start: 439 # First page number
+  end: 448 # Last page number
+  title: "MPPI - Type safe C++ Datatypes for MPI"
+  year: 2025
