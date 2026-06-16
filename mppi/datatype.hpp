@@ -51,7 +51,7 @@ namespace mppi
                 pack<offset>(_buffer.data(), fundamentals...);
         }
 
-        void retrieve_data(Fs&... fundamentals)
+        void retrieve_data(Fs&... fundamentals) const
         {
             constexpr size_t offset = 0;
             unpack<offset>(fundamentals...);
@@ -60,6 +60,7 @@ namespace mppi
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
         int get_count() const { return _buffer.size(); }
         auto get_data() { return _buffer.data(); }
+        const auto get_data() const { return _buffer.data(); }
 
     private:
         // calculate size of types including algnment
@@ -87,7 +88,7 @@ namespace mppi
         // put values of variadic template into buffer of bytes
         // overload
         template<size_t offset, typename T>
-        constexpr void pack(std::byte* buffer, T const& head) 
+        constexpr void pack(std::byte* buffer, T const& head)
         {
             // check if offset matches alignment of head
             constexpr auto mod = offset % alignof(T);
@@ -110,7 +111,7 @@ namespace mppi
 
 
         template<size_t offset, typename T>
-        constexpr void unpack(T& head)
+        constexpr void unpack(T& head) const
         {
             // check if offset matches alignment of head
             constexpr auto mod = offset % alignof(T);
@@ -119,7 +120,7 @@ namespace mppi
             std::memcpy(&head, _buffer.data() + offset + adjust_for_alignment, sizeof(T));
         }
         template<size_t offset, typename T, typename... Ts>
-        constexpr void unpack(T& head, Ts&... tail)
+        constexpr void unpack(T& head, Ts&... tail) const
         {
             // check if offset matches alignment of head
             constexpr auto mod = offset % alignof(T);
@@ -136,7 +137,8 @@ namespace mppi
 
     /* ------------------------------ Specialization: multiple ranges ------------------------------ */
     template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, are_input_ranges... Rs> 
-        requires are_same_types<Rs...> // underlying type of the ranges needs to be the same
+        requires are_same_types<Rs...> &&                       // value type of the ranges needs to be the same
+                (!contain_patterns<Rs...>)                      // Must not contain a pattern
     class Data<SR, MemRes, Rs...>
     {
     public:
@@ -150,7 +152,7 @@ namespace mppi
                 _buffer.resize(ranges_size(ranges...));
         }
 
-        void retrieve_data(Rs&... ranges)
+        void retrieve_data(Rs&... ranges) const
         {
             unpack(_buffer.begin(), ranges...);
         }
@@ -158,6 +160,7 @@ namespace mppi
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
         int get_count() const { return _buffer.size() * sizeof(BufferType); }
         auto get_data() { return _buffer.data(); }
+        const auto get_data() const { return _buffer.data(); }
 
     private:
         // underlying type of the buffer
@@ -172,7 +175,7 @@ namespace mppi
 
         // base case
         template<typename Iter, typename T>
-        constexpr void unpack(Iter iter, T& head)
+        constexpr void unpack(Iter iter, T& head) const
         {
             auto range_size = std::ranges::distance(head);
             auto iter_end = iter + range_size;
@@ -181,7 +184,7 @@ namespace mppi
         }
         // specialization case
         template<typename Iter, typename T, typename... Ts>
-        constexpr void unpack(Iter iter, T& head, Ts&... tail)
+        constexpr void unpack(Iter iter, T& head, Ts&... tail) const
         {
             auto range_size = std::ranges::distance(head);
             auto iter_end = iter + range_size;
@@ -198,11 +201,11 @@ namespace mppi
 
     /* ------------------------------ Specialization: single range ------------------------------ */
     template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, std::ranges::input_range R>
-        requires std::ranges::contiguous_range<R> // range has to be contiguous (i.e. vector, array, etc.)
+        requires std::ranges::contiguous_range<R> &&    // Range has to be contigous
+                 (!contains_pattern<R>)                 // Should not contain a pattern
     class Data<SR, MemRes, R>
     {
     public:
-        // TODO: works with views, but ranges need to be given by reference for this to work
         // data is only referenced by _buffer_ptr, so no copying done
         Data(SR, MemRes&, R& range)
         {
@@ -210,7 +213,7 @@ namespace mppi
             _buffer_size = static_cast<int>(ranges_size(range));
         }
 
-        void retrieve_data(R& range)
+        void retrieve_data(R& range) const
         {
             if (_buffer_ptr != get_buffer_ptr(range))
                 copy_to_range(range);
@@ -219,90 +222,226 @@ namespace mppi
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
         int get_count() const { return _buffer_size * sizeof(BufferType); }
         auto get_data() { return _buffer_ptr; }
+        const auto get_data() const { return _buffer_ptr; }
+
 
     private:
         // underlying type of the buffer
         typedef decltype(get_first_underlying_type<R>()) BufferType;
 
-        BufferType* get_buffer_ptr(R& range) { /*return std::addressof(*range.begin());*/ return range.data(); }
+        BufferType* get_buffer_ptr(R& range) const { /*return std::addressof(*range.begin());*/ return range.data(); }
 
         auto get_range_size(R& range) const { return std::ranges::distance(range); }
 
         template<typename T>
-        void copy_to_range(T range) { std::memcpy(range.data(), _buffer_ptr, _buffer_size * sizeof(BufferType)); }
+        void copy_to_range(T& range) const { std::memcpy(range.data(), _buffer_ptr, _buffer_size * sizeof(BufferType)); }
 
         BufferType* _buffer_ptr {};
         int _buffer_size {};
     };
 
 
-    /* ------------------------------ Specialization: ranges with Pattern ------------------------------ */
-    template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, typename... Ts, are_input_ranges... Rs> 
-    class Data<SR, MemRes, Pattern<Ts...>, Rs...>
+    /* ------------------------------ Specialization: multiple ranges with same Pattern ------------------------------ */
+    template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, are_only_views... Vs>
+        requires are_same_types<Vs...>  &&      // value type of the ranges needs to be the same
+                contain_patterns<Vs...> &&      // check if all ranges contain the same pattern
+                contain_same_patterns<Vs...>    // check if all ranges contain the same pattern
+    class Data<SR, MemRes, Vs...>
     {
     public:
         // constructor that fills the internal _buffer
-        Data(SR, MemRes& mem_res, Pattern<Ts...> const& pattern, Rs&... ranges)
+        Data(SR, MemRes& mem_res, Vs... views)
             : _buffer{ &mem_res }
         {
             // resize _buffer
-            _buffer.resize(ranges_size(ranges...) * pattern.get_size());
+            resize(views...);
+
             // check if we want to send and have to copy the data
             if constexpr ( std::is_same_v<SR, Send>)
             {
                 // copy data
-                constexpr size_t offset = 0;
-                pack(pattern, offset, ranges...);
+                size_t offset = 0;
+                (pack(offset, views), ...);
             }
         }
 
-        void retrieve_data(Pattern<Ts...> const& pattern, Rs&... ranges)
+        void retrieve_data(Vs... views) const
         {
             size_t offset = 0;
-            unpack(pattern, offset, ranges...);
+            (unpack(offset, views), ...);
         }
         
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
         int get_count() const { return _buffer.size(); }
         auto get_data() { return _buffer.data(); }
+        const auto get_data() const { return _buffer.data(); }
 
     private:
-        // base case
-        template<typename Pattern, typename U>
-        constexpr void pack(Pattern const& pattern, size_t offset, U& range)
+        // 
+        template<typename V>
+        constexpr void pack(size_t& offset, V view)
         {
+            auto pattern = view.get_pattern();
             // loop through range
-            for (auto& element : range)
+            for (auto const& element : view)
                 offset = pattern.pack(_buffer.data(), &element, offset);
         }
-        // specialization case
-        template<typename Pattern, typename U, typename... Us>
-        constexpr void pack(Pattern const& pattern, size_t offset, U& range, Us&... tail)
+
+        //
+        template<typename V>
+        constexpr void unpack(size_t& offset, V view) const
         {
+            auto pattern = view.get_pattern();
             // loop through range
-            for (auto& element : range)
+            for (auto& element : view)
+                offset = pattern.unpack(&element, _buffer.data(), offset);
+        }
+
+        template<typename T, typename... Ts>
+        inline auto get_pattern(T head, Ts... tail) const
+        {
+            return head.get_pattern();
+        }
+
+        inline auto resize(Vs... views)
+        {
+            auto pattern = get_pattern(views...);
+            _buffer.resize(((pattern.get_size() * views.size()) + ...));
+        }
+
+
+        std::pmr::vector<std::byte> _buffer;
+    };
+
+
+
+    /* ------------------------------ Specialization: multiple ranges with different Patterns ------------------------------ */
+    template <is_send_or_recv SR, is_polymorphic_memory_resource MemRes, are_only_views... Vs>
+        requires are_same_types<Vs...>  &&      // Value type of the ranges needs to be the same
+                contain_patterns<Vs...> &&      // Views must contain patterns
+                (!contain_same_patterns<Vs...>) // Views must not contain the same pattern
+    class Data<SR, MemRes, Vs...>
+    {
+    public:
+        // constructor that fills the internal_buffer
+        Data(SR, MemRes& mem_res, Vs... views)
+            : _buffer{ &mem_res }
+        {
+            // resize _buffer
+            size_t size = sizeof...(Vs) * sizeof(size_t);
+            (calc_buffer_size(size, views), ...);
+            _buffer.resize(size);
+
+            // check if we want to send and have to copy the data
+            if constexpr ( std::is_same_v<SR, Send>)
+            {
+                size_t offset = 0;
+                // include metadata of how long the ranges are
+
+                // fill buffer with metadata
+                (append_view_size(offset, views), ...);
+
+                // copy data
+                (pack(views, offset), ...);
+            }
+        }
+
+        void resize(size_t nb_bytes) { _buffer.resize(nb_bytes); }
+
+        void get_metadata(Vs... views) const
+        {
+            size_t offset = 0;
+            // include metadata of how long the ranges are
+            auto retrieve_view_size = [this, &offset]<std::ranges::input_range V>(V view)
+            {
+                size_t size;
+                std::memcpy(&size, _buffer.data() + offset, sizeof(size));
+                offset += sizeof(size);
+
+                view.resize(size);
+            };
+
+            (retrieve_view_size(views), ...);
+        }
+
+        void retrieve_data(Vs... views) const
+        {
+            size_t offset = sizeof...(Vs) * sizeof(size_t);
+            (unpack(views, offset), ...);
+        }
+
+        template<std::ranges::input_range V>
+        void calc_buffer_size(size_t& size, V view)
+        {
+            auto pattern = view.get_pattern();
+            auto mod = size % pattern.get_size();
+            if (mod != 0)
+            {
+                auto adjust_for_alignment = pattern.get_size() - mod;
+                size += adjust_for_alignment;
+            }
+            size += pattern.get_size() * view.size();
+        }
+
+        constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
+        int get_count() const { return _buffer.size(); }
+        auto get_data() { return _buffer.data(); }
+        const auto get_data() const { return _buffer.data(); }
+
+    private:
+        template<std::ranges::input_range V>
+            requires is_not_nested_container<V>
+        auto append_view_size(size_t& offset, V& view)
+        {
+            size_t size = view.size();
+            std::memcpy(_buffer.data() + offset, &size, sizeof(size));
+            offset += sizeof(size);
+        };
+        
+        template<std::ranges::input_range V>
+            requires (!is_not_nested_container<V>)
+        auto append_view_size(size_t& offset, V& view)
+        {
+            size_t size = 0;
+            for (auto const& subrange : view)
+                size++;// size += subrange.size();
+            
+            std::memcpy(_buffer.data() + offset, &size, sizeof(size));
+            offset += sizeof(size);
+        };
+
+        template<std::ranges::input_range V>
+        inline void pack(V& view, size_t& offset)
+        {
+            auto pattern = view.get_pattern();
+            // check for alignment of offset
+            auto mod = offset % pattern.get_size();
+            if (mod != 0)
+            {
+                auto adjust_for_alignment = pattern.get_size() - mod;
+                offset += adjust_for_alignment;
+            }
+
+            // loop through range
+            for (auto const& element : view)
                 offset = pattern.pack(_buffer.data(), &element, offset);
-
-            pack(pattern, offset, tail...);
         }
 
-        // base case
-        template<typename Pattern, typename U>
-        constexpr void unpack(Pattern const& pattern, size_t offset, U& range)
+        template<std::ranges::input_range V>
+        inline void unpack(V& view, size_t& offset) const
         {
-            // loop through range
-            for (auto& element : range)
-                offset = pattern.unpack(&element, _buffer.data(), offset);
-        }
-        // specialization case
-        template<typename Pattern, typename U, typename... Us>
-        constexpr void unpack(Pattern const& pattern, size_t offset, U& range, Us&... tail)
-        {
-            // loop through range
-            for (auto& element : range)
-                offset = pattern.unpack(&element, _buffer.data(), offset);
+            auto pattern = view.get_pattern();
+            // check for alignment of offset
+            auto mod = offset % pattern.get_size();
+            if (mod != 0)
+            {
+                auto adjust_for_alignment = pattern.get_size() - mod;
+                offset += adjust_for_alignment;
+            }
 
-            unpack(pattern, offset, tail...);
+            // loop through range
+            for (auto& element : view)
+                offset = pattern.unpack(&element, _buffer.data(), offset);
         }
 
 
