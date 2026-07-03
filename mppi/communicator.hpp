@@ -19,8 +19,10 @@
 
 namespace mppi
 {
-    class TrackAllocator : public std::pmr::memory_resource {
-        void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+    class TrackAllocator : public std::pmr::memory_resource 
+    {
+        void* do_allocate(std::size_t bytes, std::size_t alignment) override 
+        {
             int rank;
             MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     
@@ -29,7 +31,8 @@ namespace mppi
             return p;
         }
      
-        void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
+        void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override 
+        {
             int rank;
             MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     
@@ -37,14 +40,17 @@ namespace mppi
             return std::pmr::new_delete_resource()->deallocate(p, bytes, alignment);
         }
      
-        bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+        bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override 
+        {
             return std::pmr::new_delete_resource()->is_equal(other);
         }
     };
     
     
-    class MPIAllocator : public std::pmr::memory_resource {
-        void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+    class MPIAllocator : public std::pmr::memory_resource 
+    {
+        void* do_allocate(std::size_t bytes, std::size_t alignment) override 
+        {
             void* p;
             MPI_Info info = MPI_INFO_NULL;
             MPI_Info_create(&info);
@@ -57,35 +63,39 @@ namespace mppi
             return p;
         }
      
-        void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
+        void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override 
+        {
             MPI_Free_mem(p);
         }
      
-        bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+        bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override 
+        {
             return this == &other;
         }
     };
 
 
-#if defined USE_HIP || defined USE_CUDA
-    class GPUAllocator : public std::pmr::memory_resource {
-        void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+    class GPUAllocator : public std::pmr::memory_resource 
+    {
+        void* do_allocate(std::size_t bytes, std::size_t alignment) override 
+        {
             void* p;
-            
-            gpu_malloc(&p, bytes);
+            // This must be managed memory, as unmanaged gpu memory clashes with pmr's memory pool.
+            gpu_kernel::gpu_malloc_managed(&p, bytes);
     
             return p;
         }
      
-        void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
-            gpu_free(p);
+        void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override 
+        {
+            gpu_kernel::gpu_free(p);
         }
      
-        bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+        bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override 
+        {
             return this == &other;
         }
     };
-#endif
     
 
     class Request
@@ -145,7 +155,7 @@ namespace mppi
     {
     public:
         Communicator(MPI_Comm mpi_comm = MPI_COMM_WORLD)
-           : _mpi_comm(mpi_comm), 
+           : _mpi_comm(mpi_comm),
 #if defined USE_HIP || defined USE_CUDA
            _gpu_buffer{&_gpu_allocator},
            _gpu_pool{std::pmr::pool_options{1, 1024*1024*1024}, &_gpu_buffer},
@@ -189,7 +199,13 @@ namespace mppi
             requires (are_only_views<Vs...> || (std::is_reference_v<Vs> && ...))
         inline void send(Destination destination, Tag tag, Vs... views) 
         {
-            auto is_gpu = (is_gpu_pointer(views.data()) && ...);
+#if defined USE_HIP || defined USE_CUDA
+            bool is_gpu{};
+
+            if constexpr ((std::is_reference_v<Vs> && ...))
+                is_gpu = (gpu_kernel::is_gpu_pointer(&views) && ...);
+            else
+                is_gpu = (gpu_kernel::is_gpu_pointer(&views.front()) && ...);
 
             if (is_gpu)
             {
@@ -197,8 +213,9 @@ namespace mppi
                 MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm);
             }
             else
+#endif
             {
-                Data data(Send{}, _cpu_pool, pattern, views...);
+                Data data(Send{}, _cpu_pool, views...);
                 MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm);
             }
         }
@@ -223,7 +240,13 @@ namespace mppi
             requires (are_only_views<Vs...> || (std::is_reference_v<Vs> && ...))
         inline void recv(Source source, Tag tag, Vs... views)
         {
-            auto is_gpu = (is_gpu_pointer(views.data()) && ...);
+#if defined USE_HIP || defined USE_CUDA
+            bool is_gpu{};
+
+            if constexpr ((std::is_reference_v<Vs> && ...))
+                is_gpu = (gpu_kernel::is_gpu_pointer(&views) && ...);
+            else
+                is_gpu = (gpu_kernel::is_gpu_pointer(&views.front()) && ...);
 
             if (is_gpu)
             {
@@ -233,6 +256,7 @@ namespace mppi
                 data.retrieve_data(views...);
             }
             else
+#endif
             {
                 Data data(Recv{}, _cpu_pool, views...);
                 MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source.get(), tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
@@ -266,35 +290,34 @@ namespace mppi
             // this way we trigger the guaranteed copy elision, 
             // because the Request object is not used in this function
             MPI_Request mpi_request;
-            Data data(Send{}, _pool, views...);
+#if defined USE_HIP || defined USE_CUDA
+            // If data is located on the GPU we need to treat it differently
+            bool is_gpu{};
 
-            MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm, &mpi_request);
+            if constexpr ((std::is_reference_v<Vs> && ...))
+                is_gpu = (gpu_kernel::is_gpu_pointer(&views) && ...);
+            else
+                is_gpu = (gpu_kernel::is_gpu_pointer(&views.front()) && ...);
 
-            return Request(Send{}, std::move(data), std::move(mpi_request), views...);
+            if (is_gpu)
+            {
+                Data data(Send{}, _gpu_pool, is_gpu, views...);
+
+                MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm, &mpi_request);
+
+                return Request(Send{}, std::move(data), std::move(mpi_request), views...);
+            }
+            else
+#endif
+            {
+                Data data(Send{}, _cpu_pool, views...);
+
+                MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm, &mpi_request);
+
+                return Request(Send{}, std::move(data), std::move(mpi_request), views...);
+            }
         }
 
-        // wrapper for fundamentals
-        template<are_fundamentals... Ts>
-        inline auto irecv(Source source, Tag tag, Ts&... fundamentals)
-        {
-            MPI_Request mpi_request;
-            Data data(Send{}, _pool, pattern, ranges...);
-
-            MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm, &mpi_request);
-
-            return Request(Send{}, std::move(data), std::move(mpi_request), std::move(pattern), ranges...);
-        }
-
-        template<typename... Ts, are_only_views... Vs>
-        auto isend(Destination destination, Tag tag, Pattern<Ts...> const& pattern, Vs... views)
-        {
-            MPI_Request mpi_request;
-            Data data(Send{}, _pool, pattern, views...);
-
-            MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm, &mpi_request);
-
-            return Request(Send{}, std::move(data), std::move(mpi_request), std::move(pattern), views...);
-        }
 
         // wrapper for fundamentals
         template<are_fundamentals... Ts>
@@ -320,11 +343,32 @@ namespace mppi
             // this way we trigger the guaranteed copy elision, 
             // because the Request object is not used in this function
             MPI_Request mpi_request;
-            Data data(Recv{}, _pool, views...);
+#if defined USE_HIP || defined USE_CUDA
+            // If data is located on the GPU we need to treat it differently
+            bool is_gpu{};
 
-            MPI_Irecv(data.get_data(), data.get_count(), data.get_type(), source.get(), tag.get(), _mpi_comm, &mpi_request);
+            if constexpr ((std::is_reference_v<Vs> && ...))
+                is_gpu = (gpu_kernel::is_gpu_pointer(&views) && ...);
+            else
+                is_gpu = (gpu_kernel::is_gpu_pointer(&views.front()) && ...);
 
-            return Request(Recv{}, std::move(data), std::move(mpi_request), views...);
+            if (is_gpu)
+            {
+                Data data(Recv{}, _gpu_pool, is_gpu, views...);
+
+                MPI_Irecv(data.get_data(), data.get_count(), data.get_type(), source.get(), tag.get(), _mpi_comm, &mpi_request);
+
+                return Request(Recv{}, std::move(data), std::move(mpi_request), views...);
+            }
+            else
+#endif
+            {
+                Data data(Recv{}, _cpu_pool, views...);
+
+                MPI_Irecv(data.get_data(), data.get_count(), data.get_type(), source.get(), tag.get(), _mpi_comm, &mpi_request);
+
+                return Request(Recv{}, std::move(data), std::move(mpi_request), views...);
+            }
         }
     
     
@@ -340,7 +384,7 @@ namespace mppi
                 int nb_recv = 0;
                 MPI_Get_count(&mpi_status, MPI_BYTE, &nb_recv);
 
-                Data data(Recv{}, _pool, patterns...);
+                Data data(Recv{}, _cpu_pool, patterns...);
 
                 data.resize(nb_recv);
         
@@ -402,9 +446,7 @@ namespace mppi
 
         // uses MPI_Alloc_mem
         MPIAllocator _mpi_allocator;
-#if defined USE_HIP || defined USE_CUDA
         GPUAllocator _gpu_allocator;
-#endif
         // for debugging purposes
         TrackAllocator _track_allocator;
         // resource that only allocates and not frees CPU memory

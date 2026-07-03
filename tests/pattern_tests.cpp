@@ -2,7 +2,9 @@
 #include <memory>
 #include "pattern.hpp"
 #include "datatype.hpp"
-// #include "communicator.hpp"
+#include "communicator.hpp"
+
+
 
 TEST_CASE( "Pattern class functionality", "[Pattern]" )
 {
@@ -28,9 +30,11 @@ TEST_CASE( "Pattern class functionality", "[Pattern]" )
 
     SECTION("Basic Test")
     {
-        Test test(1, 2, 3.0, {4.0f, 5.0f, 6.0f});
+        std::vector<Test> test(1);
+        test[0] = Test(1, 2, 3.0, {4.0f, 5.0f, 6.0f});
 
-        mppi::Pattern pattern(&test, test.get_a(), test.get_c());
+        Test dummy;
+        mppi::Pattern pattern(&dummy, dummy.get_a(), dummy.get_c());
 
         struct Destination
         {
@@ -41,7 +45,7 @@ TEST_CASE( "Pattern class functionality", "[Pattern]" )
         Destination dest;
 
         size_t offset = 0;
-        pattern.pack(reinterpret_cast<std::byte*>(&dest), &test, offset);
+        pattern.pack(reinterpret_cast<std::byte*>(&dest), test, offset);
 
         REQUIRE(1 == dest.a);
         REQUIRE(std::abs(3.0 - dest.c) < 0.0001);

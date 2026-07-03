@@ -67,59 +67,40 @@ namespace mppi
     class Pattern;
 
 
-    template<typename T>
-    consteval int segments_of_type()
-    {
-        return (sizeof(T)+(segment_size-1)) / segment_size;
-    }
-    
-    template<typename Origin, typename... Members>
-    consteval int free_calc_nb_segments(Pattern<Origin, Members...>)
-    { 
-        return ((segments_of_type<Members>()) + ...); 
-    }
-    
-    template<typename... Members>
-    consteval int free_calc_nb_segments() 
-    {
-        return ((segments_of_type<Members>()) + ...); 
-    }
 
-
-
-
+    // Logic to calculate gpu-used segment offsets
     template<int I, int Partitions, typename Array, typename Current>
-        requires (static_cast<int>(sizeof(Current)) - Partitions*segment_size <= segment_size)
+        requires (static_cast<int>(sizeof(Current)) - Partitions*gpu_kernel::segment_size <= gpu_kernel::segment_size)
     consteval auto new_index()
     {
         return I+1;
     }
 
     template<int I, int Partitions, typename Array, typename Current>        
-        requires (static_cast<int>(sizeof(Current)) - Partitions*segment_size > segment_size)
+        requires (static_cast<int>(sizeof(Current)) - Partitions*gpu_kernel::segment_size > gpu_kernel::segment_size)
     consteval auto new_index()
     {
         return new_index<I+1, Partitions+1, Array, Current>();
     }
 
-
+    // Logic to calculate gpu-used segment offsets
     template<int I, int Partitions, typename Array, typename Current>
-        requires (static_cast<int>(sizeof(Current)) - Partitions*segment_size <= segment_size)
+        requires (static_cast<int>(sizeof(Current)) - Partitions*gpu_kernel::segment_size <= gpu_kernel::segment_size)
     consteval auto fill_segment(Array arr)
     {
-        arr[I] = static_cast<int>(sizeof(Current)) - Partitions*segment_size;
+        arr[I] = static_cast<int>(sizeof(Current)) - Partitions*gpu_kernel::segment_size;
         return arr;
     }
 
     template<int I, int Partitions, typename Array, typename Current>        
-        requires (static_cast<int>(sizeof(Current)) - Partitions*segment_size > segment_size)
+        requires (static_cast<int>(sizeof(Current)) - Partitions*gpu_kernel::segment_size > gpu_kernel::segment_size)
     consteval auto fill_segment(Array arr)
     {
-        arr[I] = segment_size;
+        arr[I] = gpu_kernel::segment_size;
         return fill_segment<I+1, Partitions+1, Array, Current>(arr);
     }
 
-
+    // Logic to calculate gpu-used segment offsets
     template<int I, typename Array, typename Current, typename... Members>
         requires (sizeof...(Members) == 0)
     consteval auto fill_arr(Array arr)
@@ -136,21 +117,21 @@ namespace mppi
         return fill_arr<J, Array, Members...>(fill_segment<I, 0, Array, Current>(arr));
     }
 
-    template<typename Origin, typename... Members>
-    consteval auto get_segment_sizes()
-    {
-        constexpr std::array<int, free_calc_nb_segments<Members...>()> arr{};
 
-        return fill_arr<0, std::array<int, free_calc_nb_segments<Members...>()>, Members...>(arr);
+    template<typename T>
+    consteval int segments_of_type()
+    {
+        return (sizeof(T)+(gpu_kernel::segment_size-1)) / gpu_kernel::segment_size;
     }
 
-
+    
+    // Main function responsible for calculating gpu-used segment offsets
     template<int Past_Segments, typename Origin, typename Current>
     inline int seg_to_memb(int i, Origin& origin, Current& curr)
     {
         const int nth_segment_of_type = i - Past_Segments;
         constexpr int segments_per_type = segments_of_type<Current>();
-        constexpr int nb_bytes_copy = std::min(segment_size, (int) sizeof(Current));
+        constexpr int nb_bytes_copy = std::min(gpu_kernel::segment_size, (int) sizeof(Current));
 
         return ((int) ((char*) &curr - (char*) &origin) + (int) sizeof(Current)) - 
                 ((segments_per_type - nth_segment_of_type) * nb_bytes_copy);
@@ -161,13 +142,58 @@ namespace mppi
     {
         const int nth_segment_of_type = i - Past_Segments;
         constexpr int segments_per_type = segments_of_type<Current>();
-        constexpr int nb_bytes_copy = std::min(segment_size, (int) sizeof(Current));
+        constexpr int nb_bytes_copy = std::min(gpu_kernel::segment_size, (int) sizeof(Current));
 
-        return (i * segment_size - (int) sizeof(Current) < (int) ((char*) &curr - (char*) &origin))
+        return (i * gpu_kernel::segment_size - (int) sizeof(Current) < (int) ((char*) &curr - (char*) &origin))
                 ? ((int) ((char*) &curr - (char*) &origin) + (int) sizeof(Current)) - 
                 ((segments_per_type - nth_segment_of_type) * nb_bytes_copy)
-                : seg_to_memb<Past_Segments + ((int) sizeof(Current) / segment_size)>(i, origin, members...);
+                : seg_to_memb<Past_Segments + ((int) sizeof(Current) / gpu_kernel::segment_size)>(i, origin, members...);
     };
+
+
+    // Struct that helps with extracting the Members from a Pattern.
+    template<typename T>
+    struct pattern_wrapper_struct;
+
+    template<typename Origin, typename... Members>
+    struct pattern_wrapper_struct<Pattern<Origin, Members...>>
+    {
+        static consteval int calc_nb_segments_impl()
+        {
+            return ((segments_of_type<Members>()) + ...);
+        }
+
+        static consteval auto get_segment_sizes_impl()
+        {
+            constexpr auto nb_segments = calc_nb_segments_impl();
+            constexpr std::array<int, nb_segments> arr{};
+
+            return fill_arr<0, std::array<int, nb_segments>, Members...>(arr);
+        }
+
+        static consteval auto divisible_by_4_impl()
+        {
+            return ((sizeof(Members) % 4 == 0) && ...);
+        }
+    };
+
+    template<typename T>
+    consteval int free_calc_nb_segments()
+    {
+        return pattern_wrapper_struct<T>::calc_nb_segments_impl();
+    }
+
+    template<typename T>
+    consteval auto get_segment_sizes_impl()
+    {
+        return pattern_wrapper_struct<T>::get_segment_sizes_impl();
+    }
+
+    template<typename T>
+    consteval bool divisible_by_4()
+    {
+        return pattern_wrapper_struct<T>::divisible_by_4_impl();
+    }
 
 
     
@@ -176,91 +202,111 @@ namespace mppi
     class Pattern
     {
     public:
-        Pattern() = default;
         Pattern(Origin* origin, Members&... members)
         {
-            // determine size of one packed element
-            // constexpr size_t offset = 0;
-            // constexpr auto tmp_size = calc_size<offset>(Members{}...);
-            // // adjust for alignment of first element again
-            // _size = adjust_for_first_element<tmp_size, Members...>();
-            // fill buffer of offsets
+            // Fill buffer of offsets
             fill_displs_buffer<0>(origin, members...);
 
-            std::array<int, free_calc_nb_segments<Members...>()> segment_offsets;
-            for (auto i = 0; i < segment_offsets.size(); i++)
-            {
-                segment_offsets[i] = seg_to_memb<0>(i, *origin, members...);
-                // std::cout << "Segment Offsets: " << i << ": " << _segment_offsets[i] << std::endl;
-            }
-
-            constexpr auto segment_sizes = get_segment_sizes<Origin, Members...>();
-
-            gpu_malloc(reinterpret_cast<void**>(&_segment_offsets), free_calc_nb_segments<Members...>() * sizeof(int));
-            gpu_malloc(reinterpret_cast<void**>(&_segment_sizes), free_calc_nb_segments<Members...>() * sizeof(int));
-
-            gpu_copyH2D(_segment_offsets, segment_offsets.data(), segment_offsets.size() * sizeof(int));
-            gpu_copyH2D(_segment_sizes, segment_sizes.data(), segment_sizes.size() * sizeof(int));
+            // Fill gpu-used segment offsets. It is suboptimal to have to this in the constructor
+            // even when there is no GPU involved, though this solution as Reflection would
+            // take it out of the constructor.
+            for (auto i = 0; i < _segment_offsets.size(); i++)
+                _segment_offsets[i] = seg_to_memb<0>(i, *origin, members...);
         }
 
-        ~Pattern()
+        // Implementation of the packing functionality.
+        inline size_t pack_impl(std::byte* dst, Origin const* base, size_t offset) const
         {
-            gpu_free(_segment_offsets);
-            gpu_free(_segment_sizes);
+            constexpr size_t alignment = 0;
+            return copy<alignment, 0, true>(dst, reinterpret_cast<std::byte const*>(base), offset, Members{}...);
         }
-    
-        size_t pack(std::byte* dest, Origin const* base, size_t offset) const
+
+        // Interface of the packing functionality, which allows each pattern to treat packing differently.
+        template<typename V>
+        inline size_t pack(std::byte* dst, V const view, size_t offset) const
         {
             constexpr size_t alignment = 0;
             return copy<alignment, 0, true>(dest, reinterpret_cast<std::byte const*>(base), offset, Members{}...);
         }
     
+        // Packing done on the GPU.
         template<typename Range>
-        auto pack_APU(std::byte* dest, Range const& src) const
+        inline auto pack_GPU(std::byte* dst, Range const& src, int const* segment_offsets, int const* segment_sizes) const
         {
-            // return copy_APU<true>(dest, base, segment);
-
             int const nb_segments = calc_nb_segments();
             int const total_nb_segments = nb_segments * src.size();
             int constexpr nb_threads = 768;
-            int blocksize = (src.size()*nb_segments + nb_threads-1) / nb_threads;
+            int blocksize = (total_nb_segments + nb_threads-1) / nb_threads;
             blocksize = std::min(blocksize, 300);
 
-            gpu_pack_interface(blocksize, nb_segments, (nb_threads+nb_segments-1)/nb_segments,
-                dest, reinterpret_cast<std::byte const*>(src.data()), 
-                _segment_offsets, _segment_sizes, total_nb_segments, get_size(), sizeof(typename Range::value_type));
+            // check for possible optimization
+            if constexpr (divisible_by_4<Pattern<Origin, Members...>>())
+                gpu_kernel::gpu_pack_4_interface(blocksize, nb_segments, (nb_threads+nb_segments-1)/nb_segments,
+                    dst, reinterpret_cast<std::byte const*>(src.data()), 
+                    segment_offsets, total_nb_segments, get_size(), sizeof(typename Range::value_type));
+            else
+                gpu_kernel::gpu_pack_interface(blocksize, nb_segments, (nb_threads+nb_segments-1)/nb_segments,
+                    dst, reinterpret_cast<std::byte const*>(src.data()), 
+                    segment_offsets, segment_sizes, total_nb_segments, get_size(), sizeof(typename Range::value_type));
         }
 
-    
-        size_t unpack(Origin* base, std::byte const* src, size_t offset) const
+        // Same as for pack_impl.
+        inline size_t unpack_impl(Origin* base, std::byte const* src, size_t offset) const
         {
             constexpr size_t alignment = 0;
             return copy<alignment, 0, false>(reinterpret_cast<std::byte*>(base), src, offset, Members{}...);
         }
 
-        template<typename Range>
-        auto unpack_APU(Range& dest, std::byte const* src) const
+        // Same as for pack.
+        template<typename V>
+        inline size_t unpack(V view, std::byte const* dst, size_t offset) const
         {
-            // return copy_APU<false>(base, src, segment);
-
-            int const nb_segments = calc_nb_segments();
-            int const total_nb_segments = nb_segments * dest.size();
-            int constexpr nb_threads = 768;
-            int blocksize = (dest.size()*nb_segments + nb_threads-1) / nb_threads;
+            for (auto& element : view)
+                offset = unpack_impl(&element, dst, offset);
             
+            return offset; 
+        }
+
+        // Same as for pack_GPU.
+        template<typename Range>
+        inline auto unpack_GPU(Range& dst, std::byte const* src, int const* segment_offsets, int const* segment_sizes) const
+        {
+            int const nb_segments = calc_nb_segments();
+            int const total_nb_segments = nb_segments * dst.size();
+            int constexpr nb_threads = 768;
+            int blocksize = (total_nb_segments + nb_threads-1) / nb_threads;
             blocksize = std::min(blocksize, 300);
 
-            gpu_unpack_interface(blocksize, nb_segments, (nb_threads+nb_segments-1)/nb_segments, 
-                 reinterpret_cast<std::byte*>(dest.data()), src, _segment_offsets, _segment_sizes, total_nb_segments, get_size(), sizeof(typename Range::value_type));
+            // check for possible optimization
+            if constexpr (divisible_by_4<Pattern<Origin, Members...>>())
+                gpu_kernel::gpu_unpack_4_interface(blocksize, nb_segments, (nb_threads+nb_segments-1)/nb_segments, 
+                    reinterpret_cast<std::byte*>(dst.data()), src, 
+                    segment_offsets, total_nb_segments, get_size(), sizeof(typename Range::value_type));
+            else
+                gpu_kernel::gpu_unpack_interface(blocksize, nb_segments, (nb_threads+nb_segments-1)/nb_segments, 
+                    reinterpret_cast<std::byte*>(dst.data()), src, 
+                    segment_offsets, segment_sizes, total_nb_segments, get_size(), sizeof(typename Range::value_type));
         }
     
-        auto get_size() const { return calc_pattern_size<Members...>(); }
+        inline auto get_size() const { return calc_pattern_size<Members...>(); }
 
+        // Segments are used in the gpu packing.
         constexpr int calc_nb_segments() const { return ((segments_of_type<Members>()) + ...); }
 
-        constexpr auto get_offset_array() const 
+        auto get_segment_sizes() const
         {
-            return _displacements;
+            return get_segment_sizes_impl<Pattern<Origin, Members...>>();
+        }
+
+        auto get_segment_offsets() const
+        {
+            return _segment_offsets;
+        }
+
+        template<typename... Ts>
+        inline auto get_buffer_size(Ts... views) const
+        {
+            return ((get_size() * views.size()) + ...);
         }
 
         using base_type = Origin;
@@ -292,11 +338,9 @@ namespace mppi
             offset += adjust_for_alignment;
             
             if constexpr (Pack)
-                memcpy(dest + offset, src + _displacements[I], sizeof(T));
-                // reinterpret_cast<T*>(dest + offset)[0] = reinterpret_cast<const T*>(src + _displacements[I])[0];
+                std::memcpy(dst + offset, src + _displacements[I], sizeof(T));
             else
-                memcpy(dest + _displacements[I], src + offset, sizeof(T));
-                // reinterpret_cast<T*>(dest + _displacements[I])[0] = reinterpret_cast<const T*>(src + offset)[0];
+                std::memcpy(dst + _displacements[I], src + offset, sizeof(T));
     
             return offset + sizeof(T);
         }
@@ -311,23 +355,18 @@ namespace mppi
             offset += adjust_for_alignment;
             
             if constexpr (Pack)
-                memcpy(dest + offset, src + _displacements[I], sizeof(T));
-                // reinterpret_cast<T*>(dest + offset)[0] = reinterpret_cast<const T*>(src + _displacements[I])[0];
+                std::memcpy(dst + offset, src + _displacements[I], sizeof(T));
             else
-                memcpy(dest + _displacements[I], src + offset, sizeof(T));
-                // reinterpret_cast<T*>(dest + _displacements[I])[0] = reinterpret_cast<const T*>(src + offset)[0];
+                std::memcpy(dst + _displacements[I], src + offset, sizeof(T));
     
             offset += sizeof(T);
     
-            return copy<Alignment + adjust_for_alignment + sizeof(T), I+1, Pack>(dest, src, offset, tail...);
+            return copy<Alignment + adjust_for_alignment + sizeof(T), I+1, Pack>(dst, src, offset, tail...);
         }
 
-    
+        // Data held by this Pattern, which should become unnecessary once Reflection is used.
         std::array<std::ptrdiff_t, sizeof...(Members)> _displacements;
-        // size_t _size {0};
-        // std::array<int, free_calc_nb_segments<Members...>()> _segment_offsets;
-        int* _segment_offsets = nullptr;
-        int* _segment_sizes = nullptr;
+        std::array<int, free_calc_nb_segments<Pattern<Origin, Members...>>()> _segment_offsets;
     };
 
 

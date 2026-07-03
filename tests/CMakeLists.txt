@@ -20,6 +20,19 @@ target_compile_features(pattern_tests
         PRIVATE
             cxx_std_23)
 
+if(ENABLE_GPU)
+# These tests can use the Catch2-provided main
+add_executable(pattern_tests_gpu pattern_tests_gpu.cpp)
+target_link_libraries(pattern_tests_gpu 
+    PRIVATE 
+        Catch2::Catch2WithMain
+        MPI::MPI_CXX
+        mppi::mppi)
+target_compile_features(pattern_tests_gpu
+        PRIVATE
+            cxx_std_23)
+endif()
+
 
 # These tests need their own main (to init MPI)
 add_executable(custom-main-tests test_main.cpp)
@@ -39,24 +52,24 @@ add_test(NAME custom-main-tests
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} "2" custom-main-tests )
 
 
+if(ENABLE_GPU)
+# These tests need their own main (to init MPI)
+add_executable(custom-main-tests_gpu test_main_gpu.cpp)
+target_link_libraries(custom-main-tests_gpu
+        PRIVATE 
+            Catch2::Catch2
+            MPI::MPI_CXX
+            mppi::mppi)
+target_compile_features(custom-main-tests_gpu
+        PRIVATE
+            cxx_std_23)
 
 
-# # These tests need their own main (to init MPI)
-# add_executable(hip-main-tests hip_main.hip)
-# target_link_libraries(hip-main-tests
-#         PRIVATE 
-#             Catch2::Catch2
-#             MPI::MPI_CXX
-#             mppi::mppi)
-# target_compile_features(hip-main-tests
-#         PRIVATE
-#             cxx_std_23)
-
-
-# # set(NUMPROCS "2")
-# # message(${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NUMPROCS})
-# add_test(NAME hip-main-tests
-#         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} "2" hip-main-tests )
+# set(NUMPROCS "2")
+# message(${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NUMPROCS})
+add_test(NAME custom-main-tests_gpu
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} "2" custom-main-tests_gpu )
+endif()
 
 
 
@@ -80,6 +93,8 @@ set_tests_properties(amodes_failing_tests PROPERTIES WILL_FAIL TRUE)
 include(CTest)
 include(Catch)
 catch_discover_tests(custom-main-tests)
-# catch_discover_tests(hip-main-tests)
+if(ENABLE_GPU)
+catch_discover_tests(custom-main-tests_gpu)
+endif()
 catch_discover_tests(amodes_tests)
 catch_discover_tests(pattern_tests)

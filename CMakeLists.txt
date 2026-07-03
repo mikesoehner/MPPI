@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(mppi
-    VERSION 0.9
+    VERSION 0.10
     LANGUAGES CXX)
 
 find_package(MPI REQUIRED)
@@ -11,8 +11,12 @@ include(CMakePackageConfigHelpers)
 
 include(CheckLanguage)
 
+option(ENABLE_GPU "Variable determines if GPU code should be compiled." ON)
+
+if(ENABLE_GPU)
 check_language(HIP)
 check_language(CUDA)
+endif()
 
 
 add_library(mppi INTERFACE)
