@@ -38,6 +38,28 @@ target_compile_features(custom-main-tests
 add_test(NAME custom-main-tests
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} "2" custom-main-tests )
 
+
+
+
+# # These tests need their own main (to init MPI)
+# add_executable(hip-main-tests hip_main.hip)
+# target_link_libraries(hip-main-tests
+#         PRIVATE 
+#             Catch2::Catch2
+#             MPI::MPI_CXX
+#             mppi::mppi)
+# target_compile_features(hip-main-tests
+#         PRIVATE
+#             cxx_std_23)
+
+
+# # set(NUMPROCS "2")
+# # message(${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NUMPROCS})
+# add_test(NAME hip-main-tests
+#         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} "2" hip-main-tests )
+
+
+
 # This test should already fail the compilation
 add_executable(amodes_failing_tests amodes_failing_tests.cpp)
 target_compile_features(amodes_failing_tests
@@ -57,6 +79,7 @@ set_tests_properties(amodes_failing_tests PROPERTIES WILL_FAIL TRUE)
 
 include(CTest)
 include(Catch)
-# catch_discover_tests(custom-main-tests)
+catch_discover_tests(custom-main-tests)
+# catch_discover_tests(hip-main-tests)
 catch_discover_tests(amodes_tests)
 catch_discover_tests(pattern_tests)

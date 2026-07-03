@@ -7,6 +7,7 @@
 #include <format>
 #include <iostream>
 #include <functional>
+#include <charconv>
 #include <memory>
 
 #include "mpi.h"
@@ -66,6 +67,27 @@ namespace mppi
     };
 
 
+#if defined USE_HIP || defined USE_CUDA
+    class GPUAllocator : public std::pmr::memory_resource {
+        void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+            void* p;
+            
+            gpu_malloc(&p, bytes);
+    
+            return p;
+        }
+     
+        void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
+            gpu_free(p);
+        }
+     
+        bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+            return this == &other;
+        }
+    };
+#endif
+    
+
     class Request
     {
     public:
@@ -123,14 +145,29 @@ namespace mppi
     {
     public:
         Communicator(MPI_Comm mpi_comm = MPI_COMM_WORLD)
-           : _mpi_comm(mpi_comm), _buffer{&_mpi_allocator}, _pool{std::pmr::pool_options{1, 1024*1024*1024}, &_buffer}
-        {
-            MPI_Comm_rank(_mpi_comm, &_rank);
-            MPI_Comm_size(_mpi_comm, &_size);
-        }
+           : _mpi_comm(mpi_comm), 
+#if defined USE_HIP || defined USE_CUDA
+           _gpu_buffer{&_gpu_allocator},
+           _gpu_pool{std::pmr::pool_options{1, 1024*1024*1024}, &_gpu_buffer},
+#endif
+           _cpu_buffer{&_mpi_allocator},
+           _cpu_pool{std::pmr::pool_options{1, 1024*1024*1024}, &_cpu_buffer}
+        {}
+
+        auto set_comm(MPI_Comm mpi_comm) { _mpi_comm = mpi_comm; }
     
-        inline auto get_rank() const { return _rank; }
-        inline auto get_size() const { return _size; }
+        inline auto get_rank() const 
+        { 
+            int rank;
+            MPI_Comm_rank(_mpi_comm, &rank);
+            return rank; 
+        }
+        inline auto get_size() const 
+        {
+            int size;
+            MPI_Comm_size(_mpi_comm, &size);
+            return size; 
+        }
 
 
         // wrapper for fundamentals
@@ -152,10 +189,21 @@ namespace mppi
             requires (are_only_views<Vs...> || (std::is_reference_v<Vs> && ...))
         inline void send(Destination destination, Tag tag, Vs... views) 
         {
-            Data data(Send{}, _pool, views...);
-            MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm);
+            auto is_gpu = (is_gpu_pointer(views.data()) && ...);
+
+            if (is_gpu)
+            {
+                Data data(Send{}, _gpu_pool, is_gpu, views...);
+                MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm);
+            }
+            else
+            {
+                Data data(Send{}, _cpu_pool, pattern, views...);
+                MPI_Send(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm);
+            }
         }
     
+            
         // wrapper for fundamentals
         template<are_fundamentals... Ts>
             requires (!(std::is_reference_v<Ts> && ...))
@@ -173,16 +221,26 @@ namespace mppi
         // function for recving using views
         template<typename... Vs>
             requires (are_only_views<Vs...> || (std::is_reference_v<Vs> && ...))
-        void recv(Source source, Tag tag, Vs... views)
+        inline void recv(Source source, Tag tag, Vs... views)
         {
-            Data data(Recv{}, _pool, views...);
-            MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source.get(), tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
-    
-            data.retrieve_data(views...);
-        }
+            auto is_gpu = (is_gpu_pointer(views.data()) && ...);
 
-
-
+            if (is_gpu)
+            {
+                Data data(Recv{}, _gpu_pool, is_gpu, views...);
+                MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source.get(), tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
+        
+                data.retrieve_data(views...);
+            }
+            else
+            {
+                Data data(Recv{}, _cpu_pool, views...);
+                MPI_Recv(data.get_data(), data.get_count(), data.get_type(), source.get(), tag.get(), _mpi_comm, MPI_STATUS_IGNORE);
+        
+                data.retrieve_data(views...);
+            }
+        }        
+        
         // wrapper for fundamentals
         template<are_fundamentals... Ts>
                     requires (!(std::is_reference_v<Ts> && ...))
@@ -213,6 +271,29 @@ namespace mppi
             MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm, &mpi_request);
 
             return Request(Send{}, std::move(data), std::move(mpi_request), views...);
+        }
+
+        // wrapper for fundamentals
+        template<are_fundamentals... Ts>
+        inline auto irecv(Source source, Tag tag, Ts&... fundamentals)
+        {
+            MPI_Request mpi_request;
+            Data data(Send{}, _pool, pattern, ranges...);
+
+            MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm, &mpi_request);
+
+            return Request(Send{}, std::move(data), std::move(mpi_request), std::move(pattern), ranges...);
+        }
+
+        template<typename... Ts, are_only_views... Vs>
+        auto isend(Destination destination, Tag tag, Pattern<Ts...> const& pattern, Vs... views)
+        {
+            MPI_Request mpi_request;
+            Data data(Send{}, _pool, pattern, views...);
+
+            MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm, &mpi_request);
+
+            return Request(Send{}, std::move(data), std::move(mpi_request), std::move(pattern), views...);
         }
 
         // wrapper for fundamentals
@@ -275,6 +356,7 @@ namespace mppi
             return false;
         }
 
+
         // template<typename C>
         // auto waitall(C& requests)
         // {
@@ -317,18 +399,22 @@ namespace mppi
     private:
         // stores MPI container
         MPI_Comm _mpi_comm {};
-        // stores MPI rank and size
-        int _rank {};
-        int _size {};
-    
+
         // uses MPI_Alloc_mem
         MPIAllocator _mpi_allocator;
+#if defined USE_HIP || defined USE_CUDA
+        GPUAllocator _gpu_allocator;
+#endif
         // for debugging purposes
         TrackAllocator _track_allocator;
-        // resource that only allocates and not frees memory
-        std::pmr::monotonic_buffer_resource _buffer;
+        // resource that only allocates and not frees CPU memory
+        std::pmr::monotonic_buffer_resource _cpu_buffer;
+        // resource that only allocates and not frees GPU memory
+        std::pmr::monotonic_buffer_resource _gpu_buffer;
         // resource that serves as memory pool for send and recv buffers
-        std::pmr::unsynchronized_pool_resource _pool;
+        std::pmr::unsynchronized_pool_resource _cpu_pool;
+        // resource that serves as GPU memory pool
+        std::pmr::unsynchronized_pool_resource _gpu_pool;
     };
     
     
