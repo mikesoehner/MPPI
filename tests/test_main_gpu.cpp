@@ -1,7 +1,7 @@
 #include <catch2/catch_session.hpp>
 #include <mpi.h>
 // #include "test.hpp"
-#include "send_tests.hpp"
+#include "send_tests_gpu.hpp"
 #include "communicator.hpp"
 #include <numeric>
 #include <vector>
