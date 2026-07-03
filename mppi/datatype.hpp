@@ -251,7 +251,7 @@ namespace mppi
             if constexpr ( std::is_same_v<SR, Send>)
                 (pack(_buffer, ranges), ...);
             else
-                _buffer.resize(ranges_size(ranges...));
+                _buffer.resize((std::ranges::distance(ranges) + ...));
         }
 
         void retrieve_data(Rs&... ranges) const
@@ -312,7 +312,7 @@ namespace mppi
         Data(SR, MemRes&, R& range)
         {
             _buffer_ptr = get_buffer_ptr(range);
-            _buffer_size = static_cast<int>(ranges_size(range));
+            _buffer_size = static_cast<int>(std::ranges::distance(range));
         }
 
         void retrieve_data(R& range) const
@@ -382,22 +382,20 @@ namespace mppi
     private:
         // 
         template<typename V>
-        constexpr void pack(size_t& offset, V view)
+        inline void pack(size_t& offset, V view)
         {
-            auto pattern = view.get_pattern();
-            // loop through range
-            for (auto const& element : view)
-                offset = pattern.pack(_buffer.data(), &element, offset);
+            auto const pattern = view.get_pattern();
+
+            offset = pattern.pack(_buffer.data(), view, offset);
         }
 
         //
         template<typename V>
-        constexpr void unpack(size_t& offset, V view) const
+        inline void unpack(size_t& offset, V view) const
         {
-            auto pattern = view.get_pattern();
-            // loop through range
-            for (auto& element : view)
-                offset = pattern.unpack(&element, _buffer.data(), offset);
+            auto const pattern = view.get_pattern();
+
+            offset = pattern.unpack(view, _buffer.data(), offset);
         }
 
         template<typename T, typename... Ts>
@@ -408,8 +406,9 @@ namespace mppi
 
         inline auto resize(Vs... views)
         {
-            auto pattern = get_pattern(views...);
-            _buffer.resize(((pattern.get_size() * views.size()) + ...));
+            auto const pattern = get_pattern(views...);
+            auto const size = pattern.get_buffer_size(views...);
+            _buffer.resize(size);
         }
 
 
@@ -434,6 +433,7 @@ namespace mppi
             size_t size = sizeof...(Vs) * sizeof(size_t);
             (calc_buffer_size(size, views), ...);
             _buffer.resize(size);
+            // resize(views...);
 
             // check if we want to send and have to copy the data
             if constexpr ( std::is_same_v<SR, Send>)
@@ -448,8 +448,6 @@ namespace mppi
                 (pack(views, offset), ...);
             }
         }
-
-        void resize(size_t nb_bytes) { _buffer.resize(nb_bytes); }
 
         void get_metadata(Vs... views) const
         {
@@ -483,7 +481,7 @@ namespace mppi
                 auto adjust_for_alignment = pattern.get_size() - mod;
                 size += adjust_for_alignment;
             }
-            size += pattern.get_size() * view.size();
+            size += pattern.get_buffer_size(view);
         }
 
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -516,7 +514,7 @@ namespace mppi
         template<std::ranges::input_range V>
         inline void pack(V& view, size_t& offset)
         {
-            auto pattern = view.get_pattern();
+            auto const pattern = view.get_pattern();
             // check for alignment of offset
             auto mod = offset % pattern.get_size();
             if (mod != 0)
@@ -525,9 +523,7 @@ namespace mppi
                 offset += adjust_for_alignment;
             }
 
-            // loop through range
-            for (auto const& element : view)
-                offset = pattern.pack(_buffer.data(), &element, offset);
+            offset = pattern.pack(_buffer.data(), view, offset);
         }
 
         template<std::ranges::input_range V>
@@ -542,9 +538,7 @@ namespace mppi
                 offset += adjust_for_alignment;
             }
 
-            // loop through range
-            for (auto& element : view)
-                offset = pattern.unpack(&element, _buffer.data(), offset);
+            offset = pattern.unpack(view, _buffer.data(), offset);
         }
 
 

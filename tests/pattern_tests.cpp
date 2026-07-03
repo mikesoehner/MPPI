@@ -151,4 +151,51 @@ TEST_CASE( "Pattern class functionality", "[Pattern]" )
         REQUIRE(std::abs(test1[2].get_d()[0] - 6.0f) < 0.00001f);
         REQUIRE(std::abs(test1[3].get_d()[0] - 7.0f) < 0.00001f);
     }
+
+    SECTION("Advanced Test with Subarray Pattern")
+    {
+        class Dummy
+        {
+        public:
+            std::array<int, 16> _x;
+        };
+
+        std::array<Dummy, 1> tests;
+        // Fill matrix
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+            {    
+                tests[0]._x[i*4 + j] = i * 10 + j;
+                // std::cerr << tests[0]._x[i*4 + j] << std::endl;
+            }
+
+        constexpr mppi::Pattern<int, 
+                    mppi::Sizes<4, 4>,
+                    mppi::Subsizes<2, 4>,
+                    mppi::Starts<2, 0>> pattern;
+
+        std::pmr::monotonic_buffer_resource mem_res {};
+        mppi::Data data(mppi::Send{}, mem_res, tests | mppi::pattern_view(pattern));
+
+        // Reset vector
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+                tests[0]._x[i*4 + j] = 0;
+
+        data.retrieve_data(tests | mppi::pattern_view(pattern));
+
+        // for (int i = 0; i < 4; i++)
+        //     for (int j = 0; j < 4; j++)
+        //         std::cerr << tests[0]._x[i*4 + j] << std::endl;
+
+        REQUIRE(tests[0]._x[8] == 20);
+        REQUIRE(tests[0]._x[9] == 21);
+        REQUIRE(tests[0]._x[10] == 22);
+        REQUIRE(tests[0]._x[11] == 23);
+
+        REQUIRE(tests[0]._x[12] == 30);
+        REQUIRE(tests[0]._x[13] == 31);
+        REQUIRE(tests[0]._x[14] == 32);
+        REQUIRE(tests[0]._x[15] == 33);
+    }
 }

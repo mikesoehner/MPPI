@@ -3,6 +3,9 @@
 #include <numeric>
 #include <iostream>
 #include <list>
+#include <span>
+
+
 
 TEST_CASE( "Send and Recv functionality", "[send_recv]" )
 {
@@ -543,16 +546,6 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
 
     SECTION("ISending an entire stl container with a new Pattern")
     {
-        // {
-        //     volatile int i = 0;
-        //     char hostname[256];
-        //     gethostname(hostname, sizeof(hostname));
-        //     printf("PID %d on %s ready for attach\n", getpid(), hostname);
-        //     fflush(stdout);
-        //     while (0 == i)
-        //         sleep(5);
-        // }
-
         constexpr mppi::Pattern<int, 
                     mppi::Sizes<4, 4>, 
                     mppi::Subsizes<2, 3>, 
@@ -579,13 +572,13 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
             tests_vec[0][14] = 14;
             tests_vec[0][15] = 15;
 
-            auto request = comm.isend(mppi::Destination(1), mppi::Tag(0), pattern, tests_vec | std::ranges::views::all);
-            comm.wait(request);
+            auto request = comm.isend(mppi::Destination(1), mppi::Tag(0), tests_vec | mppi::pattern_view(pattern));
+            request.wait();
         }
         else
         {
-            auto request = comm.irecv(mppi::Source(0), mppi::Tag(0), pattern, tests_vec | std::ranges::views::all);
-            comm.wait(request);
+            auto request = comm.irecv(mppi::Source(0), mppi::Tag(0), tests_vec | mppi::pattern_view(pattern));
+            request.wait();
 
             REQUIRE(tests_vec[0][0] == 0);
             REQUIRE(tests_vec[0][1] == 0);
@@ -608,7 +601,13 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
 
     SECTION("Advanced ISending an entire stl container with a new Pattern")
     {
-        constexpr mppi::Pattern<int, 
+        class Dummy
+        {
+        public:
+            std::array<int, 16> _x;
+        };
+
+        constexpr mppi::Pattern<int,
                     mppi::Sizes<4, 4, 4, 4>,
                     mppi::Subsizes<2, 1, 3, 2>,
                     mppi::Starts<0, 2, 1, 0>> pattern;
@@ -628,14 +627,14 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
                 // std::cerr << "Rank0: " << tests_vec[0][t][z][y][x] << std::endl;
             }
 
-            auto request = comm.isend(mppi::Destination(1), mppi::Tag(0), pattern, tests_vec | std::ranges::views::all);
-            comm.wait(request);
+            auto request = comm.isend(mppi::Destination(1), mppi::Tag(0), tests_vec | mppi::pattern_view(pattern));
+            request.wait();
         }
         else
         {
             std::array<int, 12> tests_vec;
             auto request = comm.irecv(mppi::Source(0), mppi::Tag(0), tests_vec | std::ranges::views::all);
-            comm.wait(request);
+            request.wait();
 
             REQUIRE(tests_vec[0] == 210);
             REQUIRE(tests_vec[1] == 211);
@@ -674,14 +673,14 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
                 // std::cerr << "Rank0: " << tests_vec[0][t][z][y][x] << std::endl;
             }
 
-            auto request = comm.isend(mppi::Destination(1), mppi::Tag(0), pattern, tests_vec | std::ranges::views::all);
-            comm.wait(request);
+            auto request = comm.isend(mppi::Destination(1), mppi::Tag(0), tests_vec | mppi::pattern_view(pattern));
+            request.wait();
         }
         else
         {
             std::array<int, 12> tests_vec;
             auto request = comm.irecv(mppi::Source(0), mppi::Tag(0), tests_vec | std::ranges::views::all);
-            comm.wait(request);
+            request.wait();
 
             REQUIRE(tests_vec[0] == 210);
             REQUIRE(tests_vec[1] == 211);

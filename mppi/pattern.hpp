@@ -225,8 +225,10 @@ namespace mppi
         template<typename V>
         inline size_t pack(std::byte* dst, V const view, size_t offset) const
         {
-            constexpr size_t alignment = 0;
-            return copy<alignment, 0, true>(dest, reinterpret_cast<std::byte const*>(base), offset, Members{}...);
+            for (auto const& element : view)
+                offset = pack_impl(dst, &element, offset);
+            
+            return offset; 
         }
     
         // Packing done on the GPU.
@@ -329,7 +331,7 @@ namespace mppi
         }
     
         template<size_t Alignment, int I, bool Pack, typename T>
-        inline size_t copy(std::byte* dest, std::byte const* src, size_t offset, T const& head) const
+        inline size_t copy(std::byte* dst, std::byte const* src, size_t offset, T const& head) const
         {
             // check if offset matches alignment of head
             constexpr auto mod = Alignment % alignof(T);
@@ -346,7 +348,7 @@ namespace mppi
         }
         
         template<size_t Alignment, int I, bool Pack, typename T, typename... Ts>
-        inline size_t copy(std::byte* dest, std::byte const* src, size_t offset, T const& head, Ts const&... tail) const
+        inline size_t copy(std::byte* dst, std::byte const* src, size_t offset, T const& head, Ts const&... tail) const
         {
             // check if offset matches alignment of head
             constexpr auto mod = Alignment % alignof(T);
@@ -376,7 +378,7 @@ namespace mppi
 
 
 
-
+    // Free function used by Subarray Pattern.
     template<int I, int Index, int Head>
     consteval int search()
     {
@@ -393,7 +395,7 @@ namespace mppi
         return search<I, Index+1, Tail...>();
     }
 
-
+    // Helper class for Subarray Pattern
     template<int... Args>
     class Sizes 
     {
@@ -408,7 +410,21 @@ namespace mppi
         static void copy(std::byte* dst, std::byte const* src) 
         {
             int offset = 0;
-            do_copy<T, 0, NbCopy, Subsize>(dst, src + Start*sizeof(T), offset, src);
+            do_copy<T, 0, NbCopy, Subsize>(dst, src + Start*sizeof(T), offset);
+        }
+
+        template<typename T, int Start, typename Subsize, typename Arr>
+        static auto get_offsets_arr(int dst, int src, Arr& arr) 
+        {
+            int offset = 0;
+            get_offsets_arr_impl<T, 0, Subsize>(dst, src + Start, offset, arr);
+        }
+
+        template<typename T, int Start, typename Subsize, typename Arr>
+        static auto get_sizes_arr(int dst, int src, Arr& arr) 
+        {
+            int offset = 0;
+            get_sizes_arr_impl<T, 0, Subsize>(dst, src + Start, offset, arr);
         }
 
         template<typename T, int Start, int NbCopy, typename Subsize>
@@ -434,24 +450,95 @@ namespace mppi
         
 
         template<typename T, int I, int NbCopy, typename Subsize>
-        static void do_copy(std::byte* dst, std::byte const* src, int& offset, std::byte const* org_src)
+        static void do_copy(std::byte* dst, std::byte const* src, int& offset)
         {
             constexpr int stride = dim_stride<I>();
             // std::cout << "Stride: " << stride << std::endl;
 
             for(auto i = 0; i < Subsize::template get<I>(); i++)
             {
-                do_copy<T, I+1, NbCopy, Subsize>(dst, src + i*stride*sizeof(T), offset, org_src);
+                do_copy<T, I+1, NbCopy, Subsize>(dst, src + i*stride*sizeof(T), offset);
             }
         }
 
         template<typename T, int I, int NbCopy, typename Subsize>
             requires (I == sizeof...(Args) - 1)
-        static void do_copy(std::byte* dst, std::byte const* src, int& offset, std::byte const* org_src)
+        static void do_copy(std::byte* dst, std::byte const* src, int& offset)
         {
-            // std::cout << (src - org_src) << std::endl;
             std::memcpy(dst + offset*sizeof(T), src, NbCopy*sizeof(T));
             offset += NbCopy;
+        }
+        
+
+        template<typename T, int I, typename Subsize, typename Arr>
+        static void get_offsets_arr_impl(int dst, int src, int& offset, Arr& arr)
+        {
+            constexpr int stride = dim_stride<I>();
+
+            for(auto i = 0; i < Subsize::template get<I>(); i++)
+            {
+                get_offsets_arr_impl<T, I+1, Subsize>(dst, src + i*stride, offset, arr);
+            }
+        }
+
+        template<typename T, int I, typename Subsize, typename Arr>
+            requires (I == sizeof...(Args) - 1)
+        static void get_offsets_arr_impl(int dst, int src, int& offset, Arr& arr)
+        {
+            auto constexpr nb_elements = Subsize::template get<I>();
+            auto constexpr divisible = sizeof(T) / gpu_kernel::segment_size;
+            auto constexpr modulo = sizeof(T) % gpu_kernel::segment_size;
+            auto constexpr mod_correction = modulo > 0 ? 1 : 0;
+
+            auto index = dst + offset;
+
+            for (auto i = 0; i < nb_elements; i++)
+            {
+                for (auto j = 0; j < divisible; j++)
+                {
+                    arr[index++] = (src + i) * sizeof(T) + j * gpu_kernel::segment_size;
+                }
+                if constexpr (mod_correction)
+                    arr[index++] = (src + i) * sizeof(T) + divisible * gpu_kernel::segment_size;
+            }
+
+            offset += nb_elements * (divisible + mod_correction);
+        }
+        
+
+        template<typename T, int I, typename Subsize, typename Arr>
+        static void get_sizes_arr_impl(int dst, int src, int& offset, Arr& arr)
+        {
+            constexpr int stride = dim_stride<I>();
+
+            for(auto i = 0; i < Subsize::template get<I>(); i++)
+            {
+                get_sizes_arr_impl<T, I+1, Subsize>(dst, src + i*stride, offset, arr);
+            }
+        }
+
+        template<typename T, int I, typename Subsize, typename Arr>
+            requires (I == sizeof...(Args) - 1)
+        static void get_sizes_arr_impl(int dst, int src, int& offset, Arr& arr)
+        {
+            auto constexpr nb_elements = Subsize::template get<I>();
+            auto constexpr divisible = sizeof(T) / gpu_kernel::segment_size;
+            auto constexpr modulo = sizeof(T) % gpu_kernel::segment_size;
+            auto constexpr mod_correction = modulo > 0 ? 1 : 0;
+
+            auto index = dst + offset;
+
+            for (auto i = 0; i < nb_elements; i++)
+            {
+                for (auto j = 0; j < divisible; j++)
+                {
+                    arr[index++] = gpu_kernel::segment_size;
+                }
+                if constexpr (mod_correction)
+                    arr[index++] = modulo;
+            }
+
+            offset += nb_elements * (divisible + mod_correction);
         }
 
 
@@ -475,6 +562,7 @@ namespace mppi
         }
     };
 
+    // Helper class for Subarray Pattern
     template<int... Args>
     class Subsizes 
     {
@@ -484,8 +572,10 @@ namespace mppi
         static constexpr int nb_strides() { return ((Args) * ...) / search<0,0,Args...>(); }
         static constexpr int total_subsize() { return ((Args) * ...); }
         static constexpr int consec_nb_copy() { return search<sizeof...(Args)-1, 0, Args...>(); }
+        static constexpr int nb_dims() { return sizeof...(Args); }
     };
 
+    // Helper class for Subarray Pattern
     template<int... Args>
     class Starts 
     {
@@ -520,27 +610,66 @@ namespace mppi
         }
     };
 
+    // This function is only necessary in the non-Reflection version.
+    template<typename T, typename Subsize>
+    consteval auto free_calc_nb_segments_subarray()
+    {
+        auto constexpr divisible = sizeof(T) / gpu_kernel::segment_size;
+        auto constexpr modulo = sizeof(T) % gpu_kernel::segment_size;
+
+        auto constexpr mod_correction = modulo > 0 ? 1 : 0;
+    
+        return Subsize::total_subsize() * (divisible + mod_correction);
+    }
+
+
+
+    // Pattern that uses MPI's subarray interface.
     template<typename T, typename Size, typename Subsize, typename Start>
         requires (std::is_fundamental_v<T>)
     class Pattern<T, Size, Subsize, Start>
     {
     public:
-        Pattern() = default;
-
-        inline size_t pack(std::byte* dest, void const* base, size_t offset) const 
+        inline size_t pack_impl(std::byte* dst, void const* base, size_t offset) const 
         {
             int constexpr starts = Start::template start<Size>();
-            // std::cout << "Start: " << starts << std::endl;
             int constexpr consec_nb_copy = Subsize::consec_nb_copy();
-            // std::cout << "consec_nb_copy: " << consec_nb_copy << std::endl;
 
-            Size::template copy<T, starts, consec_nb_copy, Subsize>(dest, reinterpret_cast<std::byte const*>(base));
+            Size::template copy<T, starts, consec_nb_copy, Subsize>(dst, reinterpret_cast<std::byte const*>(base));
             return Size::total_size();
         }
-        template<typename Range>
-        inline auto pack_APU(std::byte* dest, Range const& src) const {}
 
-        inline size_t unpack(void* base, std::byte const* src, size_t offset) const 
+        // TODO: Maybe harden this function, so only consecutive memory containers can use it
+        template<typename V>
+        inline size_t pack(std::byte* dst, V const view, size_t offset) const
+        {
+            offset = pack_impl(dst, view.data(), offset);
+            
+            return offset; 
+        }
+
+        template<typename Range>
+        inline auto pack_GPU(std::byte* dst, Range const& src, int const* segment_offsets, int const* segment_sizes) const 
+        {
+            int const nb_segments = calc_nb_segments();
+            int const total_nb_segments = nb_segments;
+            int constexpr nb_threads = 768;
+            int blocksize = (total_nb_segments + nb_threads-1) / nb_threads;
+            blocksize = std::min(blocksize, 300);
+
+            // check for possible optimization
+            if constexpr (sizeof(T) % 4 == 0)
+                gpu_kernel::gpu_pack_4_interface(blocksize, nb_segments, (nb_threads+nb_segments-1)/nb_segments,
+                    dst, reinterpret_cast<std::byte const*>(src.data()),
+                    segment_offsets, total_nb_segments, get_size(), sizeof(typename Range::value_type));
+            else
+                gpu_kernel::gpu_pack_interface(blocksize, nb_segments, (nb_threads+nb_segments-1)/nb_segments,
+                    dst, reinterpret_cast<std::byte const*>(src.data()),
+                    segment_offsets, segment_sizes, total_nb_segments, get_size(), sizeof(typename Range::value_type));
+        }
+
+
+        inline size_t unpack_impl(void* base, std::byte const* src, size_t offset) const 
         {
             int constexpr starts = Start::template start<Size>();
             int constexpr consec_nb_copy = Subsize::consec_nb_copy();
@@ -548,23 +677,85 @@ namespace mppi
             Size::template uncopy<T, starts, consec_nb_copy, Subsize>(reinterpret_cast<std::byte*>(base), src);
             return Size::total_size();
         }
-        template<typename Range>
-        inline auto unpack_APU(Range& dest, std::byte const* src) const {}
 
-        inline auto get_size() const { return (static_cast<double>(Subsize::total_subsize()) / static_cast<double>(Size::total_size()) + 1.0) * sizeof(T); }
-
-        constexpr int calc_nb_segments() const { return 0; }
-
-        constexpr auto get_offset_array() const 
+        // TODO: Maybe harden this function, so only consecutive memory containers can use it
+        template<typename V>
+        inline size_t unpack(V view, std::byte const* src, size_t offset) const
         {
-            // return _displacements;
+            offset = unpack_impl(view.data(), src, offset);
+            
+            return offset; 
+        }
+
+        template<typename Range>
+        inline auto unpack_GPU(Range& dst, std::byte const* src, int const* segment_offsets, int const* segment_sizes) const
+        {
+            int const nb_segments = calc_nb_segments();
+            int const total_nb_segments = nb_segments;
+            int constexpr nb_threads = 768;
+            int blocksize = (total_nb_segments + nb_threads-1) / nb_threads;
+            blocksize = std::min(blocksize, 300);
+
+            // check for possible optimization
+            if constexpr (sizeof(T) % 4 == 0)
+                gpu_kernel::gpu_unpack_4_interface(blocksize, nb_segments, (nb_threads+nb_segments-1)/nb_segments, 
+                    reinterpret_cast<std::byte*>(dst.data()), src, 
+                    segment_offsets, total_nb_segments, get_size(), sizeof(typename Range::value_type));
+            else
+                gpu_kernel::gpu_unpack_interface(blocksize, nb_segments, (nb_threads+nb_segments-1)/nb_segments, 
+                    reinterpret_cast<std::byte*>(dst.data()), src, 
+                    segment_offsets, segment_sizes, total_nb_segments, get_size(), sizeof(typename Range::value_type));
+        }
+
+        inline auto get_size() const
+        {
+            return sizeof(T);
+        }
+
+        constexpr int calc_nb_segments() const 
+        {
+            auto constexpr divisible = sizeof(T) / gpu_kernel::segment_size;
+            auto constexpr modulo = sizeof(T) % gpu_kernel::segment_size;
+
+            auto constexpr mod_correction = modulo > 0 ? 1 : 0;
+        
+            return Subsize::total_subsize() * (divisible + mod_correction);
+        }
+
+        constexpr auto get_segment_sizes() const
+        {
+            auto constexpr nb_segments = free_calc_nb_segments_subarray<T, Subsize>();
+            std::array<int, nb_segments> arr;
+            int constexpr starts = Start::template start<Size>();
+
+            Size::template get_sizes_arr<T, starts, Subsize, decltype(arr)>(0, 0, arr);
+
+            return arr;
+        }
+
+        constexpr auto get_segment_offsets() const
+        {
+            auto constexpr nb_segments = free_calc_nb_segments_subarray<T, Subsize>();
+            std::array<int, nb_segments> arr;
+
+            int constexpr starts = Start::template start<Size>();
+
+            Size::template get_offsets_arr<T, starts, Subsize, decltype(arr)>(0, 0, arr);
+
+            return arr;
+        }
+
+        template<typename... Ts>
+        inline auto get_buffer_size(Ts...) const
+        {
+            return Subsize::total_subsize() * sizeof(T);
         }
     private:    
     };
 
 
 
-
+    // Pattern view implementation, which is used for interface improvements.
     template<std::ranges::input_range R, typename... PatternArgs> 
         requires std::ranges::view<R>
     class Pattern_View : public std::ranges::view_interface<Pattern_View<R, PatternArgs...>>
@@ -575,7 +766,7 @@ namespace mppi
         std::ranges::iterator_t<R>                iter_start_ {std::begin(base_)};
         std::ranges::iterator_t<R>                iter_end_ {std::end(base_)};
     public:
-        Pattern_View() = default;
+        // Pattern_View() = default;
         
         constexpr Pattern_View(R base, Pattern<PatternArgs...> pattern)
             : base_(base)
@@ -597,11 +788,6 @@ namespace mppi
         constexpr auto size() const requires std::ranges::sized_range<const R>
         { 
             return std::ranges::size(base_);
-        }
-
-        constexpr auto pack(std::byte* dest, void const* base, size_t offset) const
-        {
-            return pattern_.pack(dest, base, offset);
         }
         
         constexpr auto get_pattern() const
