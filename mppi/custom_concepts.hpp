@@ -108,6 +108,85 @@ namespace mppi
 
     template<typename... Ts>
     concept contain_same_patterns = contain_patterns<Ts...> && same_pattern<Ts...>();
+
+
+    // checks if given template argument is the Sizes class
+    // forward declaration
+    template<int... Args>
+    class Sizes;
+
+    template<typename>
+    struct is_sizes_impl : std::false_type {};
+
+    template<int... Ints>
+    struct is_sizes_impl<Sizes<Ints...>> : std::true_type {};
+
+    template<typename T>
+    concept is_sizes =
+        is_sizes_impl<T>::value;
+
+
+    // checks if given template argument is the Subsizes class
+    // forward declaration
+    template<int... Args>
+    class Subsizes;
+
+    template<typename>
+    struct is_subsizes_impl : std::false_type {};
+
+    template<int... Ints>
+    struct is_subsizes_impl<Subsizes<Ints...>> : std::true_type {};
+
+    template<typename T>
+    concept is_subsizes =
+        is_subsizes_impl<T>::value;
+
+
+    // checks if given template argument is the Starts class
+    // forward declaration
+    template<int... Args>
+    class Starts;
+
+    template<typename>
+    struct is_starts_impl : std::false_type {};
+
+    template<int... Ints>
+    struct is_starts_impl<Starts<Ints...>> : std::true_type {};
+
+    template<typename T>
+    concept is_starts =
+        is_starts_impl<T>::value;
+
+
+
+    // checks if given template arguments contain classes that have the same number of template arguments.
+    template<typename T>
+    struct template_argument_count;
+
+    // Matches any class template instantiated with type parameters.
+    template<template<int...> class C, int... Ts>
+    struct template_argument_count<C<Ts...>>
+        : std::integral_constant<std::size_t, sizeof...(Ts)> {};
+
+    template<typename T>
+    consteval std::size_t template_argument_count_v()
+    {
+        return template_argument_count<T>::value;
+    }
+
+
+    template<typename Size, typename Subsize, typename Start>
+    consteval bool are_same_nb_args_impl()
+    {
+        constexpr bool a = template_argument_count_v<Size>() == template_argument_count_v<Subsize>();
+        constexpr bool b = template_argument_count_v<Subsize>() == template_argument_count_v<Start>();
+        constexpr bool c = template_argument_count_v<Size>() == template_argument_count_v<Start>();
+
+        return (true == a) && (true == b) && (true == c);
+    };
+
+    template<typename... Ts>
+    concept are_same_nb_args = are_same_nb_args_impl<Ts...>();
 };
 
 #endif

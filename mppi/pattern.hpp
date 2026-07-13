@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cstring>
 
+#include "custom_concepts.hpp"
 #include "kernel.hpp"
 
 
@@ -625,8 +626,8 @@ namespace mppi
 
 
     // Pattern that uses MPI's subarray interface.
-    template<typename T, typename Size, typename Subsize, typename Start>
-        requires (std::is_fundamental_v<T>)
+    template<typename T, is_sizes Size, is_subsizes Subsize, is_starts Start>
+        requires are_same_nb_args<Size, Subsize, Start>
     class Pattern<T, Size, Subsize, Start>
     {
     public:
