@@ -304,7 +304,7 @@ TEST_CASE( "Send and Recv functionality", "[send_recv]" )
         }
     }
 
-    SECTION("Sending an entire stl container with a Pattern using Pattern_View")
+    SECTION("Sending an entire stl container with a Pattern using PatternView")
     {
         class TestClass
         {

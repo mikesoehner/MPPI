@@ -755,40 +755,23 @@ namespace mppi
     };
 
 
-
-    // Pattern view implementation, which is used for interface improvements.
-    template<std::ranges::input_range R, typename... PatternArgs> 
-        requires std::ranges::view<R>
-    class Pattern_View : public std::ranges::view_interface<Pattern_View<R, PatternArgs...>>
+    // Range adapter class for usage of Patterns.
+    template<std::ranges::view View, typename... PatternArgs>
+    class PatternView : public std::ranges::view_interface<PatternView<View, PatternArgs...>>
     {
-    private:
-        R                                         base_ {};
-        Pattern<PatternArgs...>                   pattern_;
-        std::ranges::iterator_t<R>                iter_start_ {std::begin(base_)};
-        std::ranges::iterator_t<R>                iter_end_ {std::end(base_)};
     public:
-        // Pattern_View() = default;
-        
-        constexpr Pattern_View(R base, Pattern<PatternArgs...> pattern)
-            : base_(base)
-            , pattern_(pattern)
-            , iter_start_(std::begin(base_))
-            , iter_end_(std::end(base_))
+        PatternView(View view, Pattern<PatternArgs...> pattern)
+            : view_(std::move(view)), pattern_(std::move(pattern))
         {}
-        
-        constexpr R base() const &
-        {return base_;}
-        constexpr R base() && 
-        {return std::move(base_);}
-        
+
         constexpr auto begin() const
-        {return iter_start_;}
-        constexpr auto end() const
-        {return iter_end_;}
+        {
+            return std::begin(view_);
+        }
         
-        constexpr auto size() const requires std::ranges::sized_range<const R>
-        { 
-            return std::ranges::size(base_);
+        constexpr auto end() const
+        {
+            return std::end(view_);
         }
         
         constexpr auto get_pattern() const
@@ -797,56 +780,43 @@ namespace mppi
         }
 
         using Pattern_Type = Pattern<PatternArgs...>;
-        // using value_type = typename R::iter_value_t;
-        using value_type = std::ranges::range_value_t<R>;
+        using value_type = std::ranges::range_value_t<View>;
+
+    private:
+        View view_;
+        Pattern<PatternArgs...> pattern_;
     };
- 
-    template<class R, typename... PatternArgs>
-    Pattern_View(R&& base, Pattern<PatternArgs...> pattern)
-        -> Pattern_View<std::ranges::views::all_t<R>, PatternArgs...>;
 
-
-    namespace details
+    template<typename... PatternArgs>
+    class Pattern_View_Adaptor
     {
-        template<typename... PatternArgs>
-        struct Pattern_View_Adaptor_Closure
-        {
-            Pattern<PatternArgs...> pattern_;
-            constexpr Pattern_View_Adaptor_Closure(Pattern<PatternArgs...> pattern): pattern_(pattern)
-            {}
+    public:
+        explicit Pattern_View_Adaptor(Pattern<PatternArgs...> pattern)
+            : pattern_(std::move(pattern))
+        {}
 
-            template <std::ranges::viewable_range R>
-            constexpr auto operator()(R && r) const
-            {
-                return Pattern_View(std::forward<R>(r), pattern_);
-            }
-
-            using Pattern_Type = Pattern<PatternArgs...>;
-        } ;
-    
-        struct Pattern_View_Adaptor
+        template<std::ranges::viewable_range R>
+        auto operator()(R&& r) const 
         {
-            template<std::ranges::viewable_range R, typename... PatternArgs>
-            constexpr auto operator () (R && r, Pattern<PatternArgs...> pattern)
-            {
-                return Pattern_View( std::forward<R>(r), pattern) ;
-            }
-    
-            template<typename... PatternArgs>
-            constexpr auto operator () (Pattern<PatternArgs...> pattern)
-            {
-                return Pattern_View_Adaptor_Closure(pattern);
-            }
-        };
-    
-        template <std::ranges::viewable_range R, typename... PatternArgs>
-        constexpr auto operator | (R&& r, Pattern_View_Adaptor_Closure<PatternArgs...> const & a)
-        {
-            return a(std::forward<R>(r));
+            return PatternView(
+                std::views::all(std::forward<R>(r)), pattern_);
         }
+
+    private:
+        Pattern<PatternArgs...> pattern_;
+    };
+
+    template<typename... PatternArgs>
+    auto pattern_view(Pattern<PatternArgs...> pattern) 
+    {
+        return Pattern_View_Adaptor<PatternArgs...>(std::move(pattern));
     }
 
-    details::Pattern_View_Adaptor pattern_view;
+    template<std::ranges::viewable_range R, typename... PatternArgs>
+    auto operator| (R&& r, const Pattern_View_Adaptor<PatternArgs...>& adaptor) 
+    {
+        return adaptor(std::forward<R>(r));
+    }
 };
 
 

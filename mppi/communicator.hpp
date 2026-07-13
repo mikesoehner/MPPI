@@ -103,15 +103,15 @@ namespace mppi
     public:
         Request() = default;
 
-        template<is_send_or_recv SR, typename D, are_input_ranges... Ranges>
-        Request(SR, D data, MPI_Request request, Ranges&... ranges)
+        template<is_send_or_recv SR, typename D, are_input_ranges... Views>
+        Request(SR, D&& data, MPI_Request&& request, Views... views)
             : _mpi_request(request)
         {
             // if it is a recv request, we have to get the data back
             if constexpr (std::is_same_v<SR, Recv>)
             {
                 auto data_ptr = std::make_unique<D>(std::move(data));
-                auto tuple_ptr = std::make_unique<std::tuple<Ranges...>>(std::make_tuple(ranges...));
+                auto tuple_ptr = std::make_unique<std::tuple<Views...>>(std::make_tuple(views...));
 
                 _retrieve_data = [data_ptr = std::move(data_ptr), tuple_ptr = std::move(tuple_ptr)]
                 {
@@ -314,7 +314,7 @@ namespace mppi
 
                 MPI_Isend(data.get_data(), data.get_count(), data.get_type(), destination.get(), tag.get(), _mpi_comm, &mpi_request);
 
-                return Request(Send{}, std::move(data), std::move(mpi_request), views...);
+                return Request(Send{}, std::move(data), std::move(mpi_request), std::move(views...));
             }
         }
 
@@ -367,7 +367,7 @@ namespace mppi
 
                 MPI_Irecv(data.get_data(), data.get_count(), data.get_type(), source.get(), tag.get(), _mpi_comm, &mpi_request);
 
-                return Request(Recv{}, std::move(data), std::move(mpi_request), views...);
+                return Request(Recv{}, std::move(data), std::move(mpi_request), std::move(views...));
             }
         }
     

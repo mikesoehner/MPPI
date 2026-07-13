@@ -152,6 +152,63 @@ TEST_CASE( "Pattern class functionality", "[Pattern]" )
         REQUIRE(std::abs(test1[3].get_d()[0] - 7.0f) < 0.00001f);
     }
 
+    SECTION("Advanced Test using Request Objects")
+    {
+        std::vector<Test> tests;
+        std::pmr::monotonic_buffer_resource mem_res {};
+
+        {            
+            mppi::Request request;
+
+            Test test;
+            mppi::Pattern pattern(&test, test.get_a(), test.get_c(), test.get_d());
+            // prepare request instance
+            {
+                MPI_Request mpi_request;
+
+                auto view = tests | mppi::pattern_view(pattern);
+
+                tests.emplace_back(Test(1, 2, 3.0, {4.0f, 5.0f, 6.0f}));
+                tests.emplace_back(Test(2, 3, 4.0, {5.0f, 6.0f, 7.0f}));
+                tests.emplace_back(Test(3, 4, 5.0, {6.0f, 7.0f, 8.0f}));
+                tests.emplace_back(Test(4, 5, 6.0, {7.0f, 8.0f, 9.0f}));
+                
+
+                mppi::Data data(mppi::Send{}, mem_res, view);
+                
+                request = mppi::Request(mppi::Recv{}, std::move(data), std::move(mpi_request), std::move(view));
+            }
+
+            // reset original vector
+            tests[0] = Test{};
+            tests[1] = Test{};
+            tests[2] = Test{};
+            tests[3] = Test{};
+
+            request.retrieve_data_wrapper();
+        }
+
+        REQUIRE(tests[0].get_a() == 1);
+        REQUIRE(tests[1].get_a() == 2);
+        REQUIRE(tests[2].get_a() == 3);
+        REQUIRE(tests[3].get_a() == 4);
+
+        REQUIRE(tests[0].get_b() == 0);
+        REQUIRE(tests[1].get_b() == 0);
+        REQUIRE(tests[2].get_b() == 0);
+        REQUIRE(tests[3].get_b() == 0);
+
+        REQUIRE(std::abs(tests[0].get_c() - 3.0) < 0.00001);
+        REQUIRE(std::abs(tests[1].get_c() - 4.0) < 0.00001);
+        REQUIRE(std::abs(tests[2].get_c() - 5.0) < 0.00001);
+        REQUIRE(std::abs(tests[3].get_c() - 6.0) < 0.00001);
+
+        REQUIRE(std::abs(tests[0].get_d()[0] - 4.0f) < 0.00001f);
+        REQUIRE(std::abs(tests[1].get_d()[0] - 5.0f) < 0.00001f);
+        REQUIRE(std::abs(tests[2].get_d()[0] - 6.0f) < 0.00001f);
+        REQUIRE(std::abs(tests[3].get_d()[0] - 7.0f) < 0.00001f);
+    }
+
     SECTION("Advanced Test with Subarray Pattern")
     {
         class Dummy
