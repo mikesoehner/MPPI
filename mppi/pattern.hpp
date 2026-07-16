@@ -12,7 +12,7 @@
 #include <cstring>
 
 #include "custom_concepts.hpp"
-#include "kernel.hpp"
+#include <gpu_kernels/kernel.hpp>
 
 
 

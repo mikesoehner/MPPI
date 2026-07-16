@@ -23,6 +23,7 @@ add_library(mppi INTERFACE)
 target_include_directories(mppi
     INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/mppi>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 add_library(mppi::mppi ALIAS mppi)
@@ -55,14 +56,15 @@ add_subdirectory(benchmarks)
 
 
 
-install(TARGETS mppi 
+install(TARGETS mppi
         EXPORT mppi
         FILE_SET HEADERS
         DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 install(EXPORT mppi
         DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake/mppi
-        NAMESPACE mppi::)
+        NAMESPACE mppi::
+        FILE mppi-config.cmake)
 # install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/mppiConfig.cmake DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/mppi)
 
 install(DIRECTORY mppi DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

@@ -20,9 +20,10 @@ else()
 endif()
 
 
-add_library(gpu_kernel kernel.cpp utility_functions.cpp)
-add_library(gpu_kernel::gpu_kernel ALIAS gpu_kernel)
-target_include_directories(gpu_kernel 
+add_library(gpu_kernels kernel.cpp utility_functions.cpp)
+add_library(gpu_kernels::gpu_kernels ALIAS gpu_kernels)
+
+target_include_directories(gpu_kernels 
     PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
@@ -31,26 +32,32 @@ target_include_directories(gpu_kernel
 # link gpu kernels to MPPI interface library
 if(CMAKE_CUDA_COMPILER)
   target_link_libraries(mppi
-      INTERFACE gpu_kernel::gpu_kernel
+      INTERFACE gpu_kernels::gpu_kernels
                 CUDA::cudart)
 else()
   target_link_libraries(mppi
-      INTERFACE gpu_kernel::gpu_kernel)
+      INTERFACE gpu_kernels::gpu_kernels)
 endif()
 
-target_include_directories(mppi
-    INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+#target_include_directories(mppi
+#    INTERFACE
+#    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+#    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 
-install(TARGETS gpu_kernel 
-        EXPORT gpu_kernel
-        DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS gpu_kernels
+        EXPORT mppi
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        RUNTIME DESTINATION bin
+        #DESTINATION ${CMAKE_INSTALL_PREFIX}
+	#        DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake/gpu_kernels
+)
 
-install(EXPORT gpu_kernel
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake/gpu_kernel
-        NAMESPACE gpu_kernel::)
+
+#install(EXPORT gpu_kernels
+#        DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake/gpu_kernels
+#        NAMESPACE gpu_kernels::)
 
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
