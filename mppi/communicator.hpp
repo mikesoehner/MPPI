@@ -107,21 +107,13 @@ namespace mppi
         Request(SR, D&& data, MPI_Request&& request, Views... views)
             : _mpi_request(request)
         {
-            // if it is a recv request, we have to get the data back
-            if constexpr (std::is_same_v<SR, Recv>)
-            {
-                auto data_ptr = std::make_unique<D>(std::move(data));
-                auto tuple_ptr = std::make_unique<std::tuple<Views...>>(std::make_tuple(views...));
+            auto data_ptr = std::make_unique<D>(std::move(data));
+            auto tuple_ptr = std::make_unique<std::tuple<Views...>>(std::make_tuple(views...));
 
-                _retrieve_data = [data_ptr = std::move(data_ptr), tuple_ptr = std::move(tuple_ptr)]
-                {
-                    std::apply([&](auto &&... args) { data_ptr->retrieve_data(args...); }, *tuple_ptr);
-                };
-            }
-            else
+            _retrieve_data = [data_ptr = std::move(data_ptr), tuple_ptr = std::move(tuple_ptr)]
             {
-                _retrieve_data = [](){};
-            }        
+                std::apply([&](auto &&... args) { data_ptr->retrieve_data(args...); }, *tuple_ptr);
+            };
         }
 
         auto& get() { return _mpi_request; }

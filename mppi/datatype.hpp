@@ -54,8 +54,11 @@ namespace mppi
 
         void retrieve_data(Fs&... fundamentals) const
         {
-            constexpr size_t offset = 0;
-            unpack<offset>(fundamentals...);
+            if constexpr ( std::is_same_v<SR, Recv> )
+            {
+                constexpr size_t offset = 0;
+                unpack<offset>(fundamentals...);
+            }
         }
 
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -154,8 +157,11 @@ namespace mppi
 
         void retrieve_data(Fs&... fundamentals) const
         {
-            constexpr size_t offset = 0;
-            unpack<offset>(fundamentals...);
+            if constexpr ( std::is_same_v<SR, Recv> )
+            {
+                constexpr size_t offset = 0;
+                unpack<offset>(fundamentals...);
+            }
         }
 
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -256,7 +262,8 @@ namespace mppi
 
         void retrieve_data(Rs&... ranges) const
         {
-            unpack(_buffer.begin(), ranges...);
+            if constexpr ( std::is_same_v<SR, Recv> )
+                unpack(_buffer.begin(), ranges...);
         }
         
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -317,8 +324,11 @@ namespace mppi
 
         void retrieve_data(R& range) const
         {
-            if (_buffer_ptr != get_buffer_ptr(range))
+            if constexpr ( std::is_same_v<SR, Recv> )
+            {
+                if (_buffer_ptr != get_buffer_ptr(range))
                 copy_to_range(range);
+            }
         }
 
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -370,8 +380,11 @@ namespace mppi
 
         void retrieve_data(Vs... views) const
         {
-            size_t offset = 0;
-            (unpack(offset, views), ...);
+            if constexpr ( std::is_same_v<SR, Recv> )
+            {
+                size_t offset = 0;
+                (unpack(offset, views), ...);
+            }
         }
         
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -467,8 +480,11 @@ namespace mppi
 
         void retrieve_data(Vs... views) const
         {
-            size_t offset = sizeof...(Vs) * sizeof(size_t);
-            (unpack(views, offset), ...);
+            if constexpr ( std::is_same_v<SR, Recv> )
+            {
+                size_t offset = sizeof...(Vs) * sizeof(size_t);
+                (unpack(views, offset), ...);
+            }
         }
 
         template<std::ranges::input_range V>
@@ -604,9 +620,12 @@ namespace mppi
         }
 
         void retrieve_data(Vs&... ranges) const
-        {   
-            size_t offset = 0;
-            (unpack(_buffer, ranges, offset), ...);
+        {
+            if constexpr ( std::is_same_v<SR, Recv> )
+            {
+                size_t offset = 0;
+                (unpack(_buffer, ranges, offset), ...);
+            }
         }
         
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
@@ -708,8 +727,11 @@ namespace mppi
 
         void retrieve_data(Vs&... views)
         {
-            size_t offset = 0;
-            (unpack(offset, views), ...);
+            if constexpr ( std::is_same_v<SR, Recv> )
+            {
+                size_t offset = 0;
+                (unpack(offset, views), ...);
+            }
         }
         
         constexpr MPI_Datatype get_type() const { return MPI_BYTE; }
